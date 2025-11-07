@@ -1,22 +1,3 @@
-<script lang="ts">
-	import { onMount } from 'svelte';
-
-	let headerHeight = 0;
-	let statusBarVar = '';
-	let navBarVar = '';
-
-	onMount(() => {
-		const styles = getComputedStyle(document.documentElement);
-		statusBarVar = styles.getPropertyValue('--status-bar-height').trim();
-		navBarVar = styles.getPropertyValue('--nav-bar-height').trim();
-
-		const header = document.querySelector('.header');
-		if (header) {
-			headerHeight = header.getBoundingClientRect().height;
-		}
-	});
-</script>
-
 <div class="app-container">
 	<header class="header">
 		<h1>Dark Vibes App</h1>
@@ -26,12 +7,6 @@
 			<span class="icon">🔔</span>
 		</div>
 	</header>
-
-	<div class="debug">
-		<div>Status Bar Var: {statusBarVar}</div>
-		<div>Nav Bar Var: {navBarVar}</div>
-		<div>Header Height: {headerHeight}px</div>
-	</div>
 
 	<section class="hero">
 		<h2>Scroll to test overlays</h2>
@@ -131,15 +106,6 @@
 
 	.icon {
 		font-size: 20px;
-	}
-
-	.debug {
-		background: #ff0;
-		color: #000;
-		padding: 10px;
-		font-family: monospace;
-		font-size: 14px;
-		font-weight: bold;
 	}
 
 	.hero {

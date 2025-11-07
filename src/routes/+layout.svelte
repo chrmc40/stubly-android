@@ -47,6 +47,9 @@
 <!-- Android status bar overlay -->
 <div class="status-bar-overlay"></div>
 
+<!-- Android navigation bar overlay -->
+<div class="nav-bar-overlay"></div>
+
 {@render children?.()}
 
 <style>
@@ -62,9 +65,22 @@
 		pointer-events: none;
 	}
 
+	.nav-bar-overlay {
+		position: fixed;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		height: var(--nav-bar-height);
+		backdrop-filter: blur(20px) saturate(180%);
+		background-color: rgba(0, 0, 0, 0.5);
+		z-index: 9999;
+		pointer-events: none;
+	}
+
 	/* Hide on web (when height is 0) */
 	@media (hover: hover) and (pointer: fine) {
-		.status-bar-overlay {
+		.status-bar-overlay,
+		.nav-bar-overlay {
 			display: none;
 		}
 	}
