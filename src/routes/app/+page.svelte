@@ -1,9 +1,12 @@
 <div class="app-container">
 	<header class="header">
-		<button class="menu-button">☰</button>
-		<h1>ScrapeNAS</h1>
-		<div class="status-icons">
-			<button class="user-avatar">A</button>
+		<div class="status-bar-spacer"></div>
+		<div class="top-bar">
+			<button class="menu-button">☰</button>
+			<h1>ScrapeNAS</h1>
+			<div class="status-icons">
+				<button class="user-avatar">A</button>
+			</div>
 		</div>
 	</header>
 
@@ -89,23 +92,30 @@
 	.header {
 		position: sticky;
 		top: 0;
+		margin-top: calc(-1 * var(--status-bar-height, 0));
+		z-index: 100;
 		background-color: rgba(0, 0, 0, 0.75);
 		backdrop-filter: blur(20px) saturate(180%);
-		padding-top: calc(var(--status-bar-height, 0px));
-		padding-right:20px;
-		margin-top: calc(-1 * var(--status-bar-height, 0));
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		z-index: 100;
 		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 	}
 
-	/* Web only - remove padding and margin when no status bar */
+	.status-bar-spacer {
+		height: var(--status-bar-height, 0px);
+		background-color: transparent;
+	}
+
+	.top-bar {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding-right: 20px;
+		height: 60px;
+	}
+
+	/* Web only - remove negative margin when no status bar */
 	@media (hover: hover) and (pointer: fine) {
 		.header {
-			padding-top: 0;
 			margin-top: 0;
 		}
 	}
@@ -326,11 +336,11 @@
 
 	/* Mobile responsiveness */
 	@media (max-width: 768px) {
-		.header {
+		.top-bar {
 			padding-right: 15px;
 		}
 		.menu-button {
-			width:50px;
+			width: 50px;
 		}
 	}
 </style>
