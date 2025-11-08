@@ -1,5 +1,7 @@
 import { writable } from 'svelte/store';
 import { SystemBars } from '$lib/config/system-bars';
+import { setCSSVars } from '$lib/utils/css-vars';
+import { emit } from '$lib/utils/events';
 
 export interface SystemBarsData {
 	orientation: number;
@@ -48,8 +50,8 @@ export async function initSystemBars() {
 			console.log('Configuration changed - updating system bars');
 			await updateSystemBars();
 
-			// Dispatch window event for other components to react
-			window.dispatchEvent(new CustomEvent('configurationChanged'));
+			// Dispatch typed event for other components to react
+			emit('configurationChanged');
 		});
 	}
 }
@@ -73,10 +75,6 @@ async function updateSystemBars() {
 		const notchLeft = data.notchLeft / dpr;
 		const notchRight = data.notchRight / dpr;
 
-		// Update CSS variables
-		document.documentElement.style.setProperty('--status-bar-height', `${statusBarHeight}px`);
-		document.documentElement.style.setProperty('--nav-bar-bottom', `${navBarBottom}px`);
-
 		// Calculate total side padding (nav bar + notch on opposite sides)
 		let totalLeft = 0;
 		let totalRight = 0;
@@ -93,8 +91,13 @@ async function updateSystemBars() {
 			totalRight = 0;
 		}
 
-		document.documentElement.style.setProperty('--nav-bar-left', `${totalLeft}px`);
-		document.documentElement.style.setProperty('--nav-bar-right', `${totalRight}px`);
+		// Update CSS variables using utility
+		setCSSVars({
+			'--status-bar-height': `${statusBarHeight}px`,
+			'--nav-bar-bottom': `${navBarBottom}px`,
+			'--nav-bar-left': `${totalLeft}px`,
+			'--nav-bar-right': `${totalRight}px`
+		});
 
 		// Update store
 		systemBarsData.set({

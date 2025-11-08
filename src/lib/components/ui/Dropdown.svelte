@@ -104,11 +104,6 @@
 		color: var(--text-muted);
 	}
 
-	.chevron {
-		transition: transform 0.2s ease;
-		color: var(--text-subdued);
-	}
-
 	.dropdown-menu {
 		position: absolute;
 		top: calc(100% + 4px);

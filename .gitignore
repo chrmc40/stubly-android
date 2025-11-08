@@ -21,3 +21,6 @@ Thumbs.db
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Capacitor (preserve only the production config)
+capacitor.config.ts.tmp

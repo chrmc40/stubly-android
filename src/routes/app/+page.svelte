@@ -680,24 +680,4 @@
 		font-size: 11px;
 		font-weight: 500;
 	}
-
-	/* Debug Overlay */
-	.debug-overlay {
-		position: fixed;
-		top: 100px;
-		right: 10px;
-		background: yellow;
-		color: red;
-		padding: 10px;
-		border-radius: 8px;
-		font-family: monospace;
-		font-size: 12px;
-		font-weight: bold;
-		z-index: 99999;
-		pointer-events: none;
-	}
-
-	.debug-overlay div {
-		margin: 2px 0;
-	}
 </style>

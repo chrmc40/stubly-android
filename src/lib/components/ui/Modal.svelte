@@ -16,10 +16,23 @@
 			close();
 		}
 	}
+
+	function handleKeydown(e: KeyboardEvent) {
+		if (e.key === 'Escape') {
+			close();
+		}
+	}
 </script>
 
 {#if open}
-	<div class="modal-backdrop" onclick={handleBackdropClick}>
+	<div
+		class="modal-backdrop"
+		role="dialog"
+		aria-modal="true"
+		onclick={handleBackdropClick}
+		onkeydown={handleKeydown}
+		tabindex="-1"
+	>
 		<div class="modal-content">
 			<div class="modal-header">
 				<h2>{title}</h2>

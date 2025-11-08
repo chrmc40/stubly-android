@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount } from 'svelte';
+	import { listen } from '$lib/utils/events';
 
 	let { children } = $props();
 
@@ -11,8 +12,12 @@
 	/**
 	 * Listen to headroom header changes to sync bottom nav behavior
 	 */
-	function handleHeadroomChange(e: CustomEvent) {
-		const { translateY, scrollY, isOrientationChange } = e.detail;
+	function handleHeadroomChange(detail: {
+		translateY: number;
+		scrollY: number;
+		isOrientationChange: boolean;
+	}) {
+		const { translateY, scrollY, isOrientationChange } = detail;
 		headerFullyVisible = translateY === 0;
 
 		// If this is an orientation change, restore saved state and return
@@ -60,15 +65,9 @@
 	}
 
 	onMount(() => {
-		if (typeof window !== 'undefined') {
-			window.addEventListener('headroomChange', handleHeadroomChange as EventListener);
-		}
-	});
-
-	onDestroy(() => {
-		if (typeof window !== 'undefined') {
-			window.removeEventListener('headroomChange', handleHeadroomChange as EventListener);
-		}
+		// Use typed event listener
+		const cleanup = listen('headroomChange', handleHeadroomChange);
+		return cleanup;
 	});
 </script>
 

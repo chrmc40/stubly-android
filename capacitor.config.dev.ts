@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'SN App (Dev)',
   webDir: 'build',
   server: {
-    url: 'http://localhost:5173',
+    url: 'http://YOUR_IP:5173',
     cleartext: true
   }
 };

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
+	import { emit, listen } from '$lib/utils/events';
 
 	let { children } = $props();
 
@@ -36,17 +37,13 @@
 		scrollY = currentScrollY;
 
 		// Dispatch updated state with orientation flag
-		window.dispatchEvent(
-			new CustomEvent('headroomChange', {
-				detail: {
-					translateY: headerTranslateY,
-					fullyVisible: headerTranslateY === 0,
-					fullyHidden: Math.abs(headerTranslateY - (-headerHeight)) < 1,
-					scrollY: currentScrollY,
-					isOrientationChange: true
-				}
-			})
-		);
+		emit('headroomChange', {
+			translateY: headerTranslateY,
+			fullyVisible: headerTranslateY === 0,
+			fullyHidden: Math.abs(headerTranslateY - (-headerHeight)) < 1,
+			scrollY: currentScrollY,
+			isOrientationChange: true
+		});
 	}
 
 	/**
@@ -83,16 +80,13 @@
 		lastScrollY = currentScrollY;
 
 		// Dispatch event with header state for other components
-		window.dispatchEvent(
-			new CustomEvent('headroomChange', {
-				detail: {
-					translateY: headerTranslateY,
-					fullyVisible: headerTranslateY === 0,
-					fullyHidden: headerTranslateY === -headerHeight,
-					scrollY: currentScrollY
-				}
-			})
-		);
+		emit('headroomChange', {
+			translateY: headerTranslateY,
+			fullyVisible: headerTranslateY === 0,
+			fullyHidden: headerTranslateY === -headerHeight,
+			scrollY: currentScrollY,
+			isOrientationChange: false
+		});
 	}
 
 	onMount(() => {
@@ -101,16 +95,18 @@
 		}
 		if (typeof window !== 'undefined') {
 			window.addEventListener('scroll', handleScroll, { passive: true });
-			window.addEventListener('configurationChanged', handleConfigurationChange);
 			handleScroll(); // Initial call
 		}
-	});
 
-	onDestroy(() => {
-		if (typeof window !== 'undefined') {
-			window.removeEventListener('scroll', handleScroll);
-			window.removeEventListener('configurationChanged', handleConfigurationChange);
-		}
+		// Use typed event listener
+		const cleanup = listen('configurationChanged', handleConfigurationChange);
+
+		return () => {
+			if (typeof window !== 'undefined') {
+				window.removeEventListener('scroll', handleScroll);
+			}
+			cleanup();
+		};
 	});
 </script>
 

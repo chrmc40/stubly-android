@@ -117,14 +117,14 @@
 		<h2>📋 Dropdowns</h2>
 		<div class="input-grid">
 			<div>
-				<label>Select Fruit</label>
+				<div class="label">Select Fruit</div>
 				<Dropdown bind:value={selectedFruit} options={fruits} placeholder="Pick your fruit..." />
 				{#if selectedFruit}
 					<p class="selected-value">Selected: {selectedFruit}</p>
 				{/if}
 			</div>
 			<div>
-				<label>Select Country</label>
+				<div class="label">Select Country</div>
 				<Dropdown
 					bind:value={selectedCountry}
 					options={countries}
@@ -142,7 +142,7 @@
 		<h2>📅 Date Picker</h2>
 		<div class="input-grid">
 			<div>
-				<label>Birth Date</label>
+				<div class="label">Birth Date</div>
 				<DatePicker bind:value={birthDate} placeholder="Select your birthday..." />
 				{#if birthDate}
 					<p class="selected-value">Selected: {birthDate}</p>
@@ -644,7 +644,7 @@
 		gap: 20px;
 	}
 
-	.input-grid label {
+	.input-grid .label {
 		display: block;
 		margin-bottom: 8px;
 		font-weight: 600;
