@@ -160,7 +160,11 @@
 		</nav>
 	</div>
 
+	<!-- Fixed status bar overlay -->
 	<div class="status-bar-spacer"></div>
+
+	<!-- In-flow spacer to push content down -->
+	<div class="status-bar-push"></div>
 
 	<!-- Spacer to reserve header space when it becomes fixed -->
 	{#if isHeaderFixed}
@@ -397,13 +401,23 @@
 	}
 
 	.status-bar-spacer {
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
 		height: var(--status-bar-height, 0px);
 		background-color: #000;
+		z-index: 100;
 	}
 
-	/* Hide status bar spacer on web (desktop) */
+	.status-bar-push {
+		height: var(--status-bar-height, 0px);
+	}
+
+	/* Hide status bar elements on web (desktop) */
 	@media (hover: hover) and (pointer: fine) {
-		.status-bar-spacer {
+		.status-bar-spacer,
+		.status-bar-push {
 			display: none;
 		}
 	}
