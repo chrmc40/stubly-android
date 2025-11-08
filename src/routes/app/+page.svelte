@@ -57,7 +57,7 @@
 			}
 		}
 		// Snap back to relative only when at the very top
-		else if (currentScrollY === 0) {
+		else if (currentScrollY <= 1) {
 			isHeaderFixed = false;
 			isHeaderHidden = false; // Always visible when not fixed
 		}
@@ -451,7 +451,7 @@
 	.header-frosted .middle-bar {
 		backdrop-filter: blur(20px) saturate(180%);
 		background-color: rgba(26, 27, 28, 0.8);
-		/* border-bottom: 1px solid rgba(255, 255, 255, 0.1); */
+		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 	}
 
 	.top-bar {
