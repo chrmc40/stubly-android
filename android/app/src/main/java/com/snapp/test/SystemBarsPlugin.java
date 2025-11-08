@@ -1,7 +1,9 @@
 package com.snapp.test;
 
+import android.content.Context;
 import android.content.res.Configuration;
 import android.graphics.Rect;
+import android.view.OrientationEventListener;
 import android.view.Surface;
 import android.view.View;
 import android.view.WindowInsets;
@@ -14,11 +16,35 @@ import com.getcapacitor.JSObject;
 @CapacitorPlugin(name = "SystemBars")
 public class SystemBarsPlugin extends Plugin {
 
+    private OrientationEventListener orientationListener;
+    private int lastRotation = -1;
+
     @Override
-    protected void handleOnConfigurationChanged(Configuration newConfig) {
-        super.handleOnConfigurationChanged(newConfig);
-        // Notify JS side that configuration changed
-        notifyListeners("configurationChanged", null);
+    public void load() {
+        super.load();
+        // Set up orientation listener for all rotation changes (90 ↔ 270, etc)
+        orientationListener = new OrientationEventListener(getContext()) {
+            @Override
+            public void onOrientationChanged(int orientation) {
+                int rotation = getActivity().getWindowManager().getDefaultDisplay().getRotation();
+                if (rotation != lastRotation) {
+                    lastRotation = rotation;
+                    notifyListeners("configurationChanged", null);
+                }
+            }
+        };
+
+        if (orientationListener.canDetectOrientation()) {
+            orientationListener.enable();
+        }
+    }
+
+    @Override
+    protected void handleOnDestroy() {
+        if (orientationListener != null) {
+            orientationListener.disable();
+        }
+        super.handleOnDestroy();
     }
 
     @PluginMethod

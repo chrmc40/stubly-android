@@ -34,9 +34,19 @@
 
 				document.documentElement.style.setProperty('--status-bar-height', `${statusBarHeight}px`);
 				document.documentElement.style.setProperty('--nav-bar-bottom', `${navBarBottom}px`);
-				document.documentElement.style.setProperty('--nav-bar-left', `${navBarLeft}px`);
-				document.documentElement.style.setProperty('--nav-bar-right', `${navBarRight}px`);
-				document.documentElement.style.setProperty('--nav-bar-side', data.navBarSide);
+
+				// Set side-specific variables based on which side the nav bar is on
+				if (data.navBarSide === 'left') {
+					document.documentElement.style.setProperty('--nav-bar-left', `${navBarLeft}px`);
+					document.documentElement.style.setProperty('--nav-bar-right', '0px');
+				} else if (data.navBarSide === 'right') {
+					document.documentElement.style.setProperty('--nav-bar-left', '0px');
+					document.documentElement.style.setProperty('--nav-bar-right', `${navBarRight}px`);
+				} else {
+					// Bottom - no side padding
+					document.documentElement.style.setProperty('--nav-bar-left', '0px');
+					document.documentElement.style.setProperty('--nav-bar-right', '0px');
+				}
 
 				console.log('System bars updated:', {
 					statusBar: statusBarHeight,
@@ -93,12 +103,16 @@
 	{@render children?.()}
 </div>
 
-<!-- Android navigation bar (frosted glass overlay) -->
+<!-- Android navigation bar overlays (frosted glass) -->
 <div class="mobile-nav-bar" class:nav-icons-hidden={isBottomNavHidden}></div>
+<div class="mobile-nav-bar-left"></div>
+<div class="mobile-nav-bar-right"></div>
 
 <style>
 	.app-content-area {
 		padding-bottom: calc(56px + var(--nav-bar-bottom, 0px));
+		padding-left: var(--nav-bar-left, 0px);
+		padding-right: var(--nav-bar-right, 0px);
 		min-height: 100dvh;
 	}
 
@@ -119,9 +133,35 @@
 		height: var(--nav-bar-bottom, 0px);
 	}
 
+	.mobile-nav-bar-left {
+		position: fixed;
+		top: 0;
+		left: 0;
+		bottom: 0;
+		width: var(--nav-bar-left, 0px);
+		backdrop-filter: blur(20px) saturate(180%);
+		background-color: rgba(0, 0, 0, 0.75);
+		z-index: 9999;
+		pointer-events: none;
+	}
+
+	.mobile-nav-bar-right {
+		position: fixed;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		width: var(--nav-bar-right, 0px);
+		backdrop-filter: blur(20px) saturate(180%);
+		background-color: rgba(0, 0, 0, 0.75);
+		z-index: 9999;
+		pointer-events: none;
+	}
+
 	/* Hide on web */
 	@media (hover: hover) and (pointer: fine) {
-		.mobile-nav-bar {
+		.mobile-nav-bar,
+		.mobile-nav-bar-left,
+		.mobile-nav-bar-right {
 			display: none;
 		}
 	}
