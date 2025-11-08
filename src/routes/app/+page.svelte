@@ -77,12 +77,15 @@
 
 		// Elastic scroll behavior for bottom nav (always active when past threshold)
 		if (currentScrollY > 100) {
-			// Accumulate scroll delta for bottom nav (56px is nav height without Android nav bar)
-			bottomNavTranslateY = Math.max(0, Math.min(56, bottomNavTranslateY + scrollDelta));
+			// Check if header is fully visible (only applies when header is fixed)
+			const headerFullyVisible = isHeaderFixed && headerTranslateY === 0;
 
-			// Snap to fully visible if scrolled back to reveal it
-			if (bottomNavTranslateY <= 0) {
+			if (headerFullyVisible) {
+				// Snap bottom nav to fully visible when header is fully shown
 				bottomNavTranslateY = 0;
+			} else {
+				// Accumulate scroll delta for bottom nav (56px is nav height without Android nav bar)
+				bottomNavTranslateY = Math.max(0, Math.min(56, bottomNavTranslateY + scrollDelta));
 			}
 
 			// Dispatch event for layout overlay
@@ -254,6 +257,8 @@
 			<div class="gallery-item" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);"></div>
 			<div class="gallery-item" style="background: linear-gradient(135deg, #30cfd0 0%, #330867 100%);"></div>
 			<div class="gallery-item" style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);"></div>
+			<div class="gallery-item" style="background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);"></div>
+			<div class="gallery-item" style="background: linear-gradient(135deg, #cfd9df 0%, #e2ebf0 100%);"></div>
 		</div>
 
 		<!-- <section class="hero">
@@ -331,7 +336,7 @@
 	</main>
 
 	<!-- Bottom Navigation Bar (YouTube style) -->
-	<nav class="bottom-nav" style="--bottom-nav-translate-y: {bottomNavTranslateY}px; --bottom-nav-opacity: {1 - (bottomNavTranslateY / 56)};">
+	<nav class="bottom-nav" class:snap-visible={bottomNavTranslateY === 0 && isHeaderFixed && headerTranslateY === 0} style="--bottom-nav-translate-y: {bottomNavTranslateY}px; --bottom-nav-opacity: {1 - (bottomNavTranslateY / 56)};">
 		<button class="nav-item active">
 			<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
 				<path d="M9.17 6l2 2H20v10H4V6h5.17M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" />
@@ -798,7 +803,7 @@
 	/* Gallery */
 	.gallery {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+		grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
 		gap: 12px;
 		padding: 16px;
 	}
@@ -832,6 +837,10 @@
 		transform: translateY(var(--bottom-nav-translate-y, 0));
 		opacity: var(--bottom-nav-opacity, 1);
 		transition: transform 0.1s linear, opacity 0.1s linear;
+	}
+
+	.bottom-nav.snap-visible {
+		transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 	}
 
 	.nav-item {
