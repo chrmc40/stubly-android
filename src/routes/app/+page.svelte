@@ -1,21 +1,9 @@
 <script>
-	import { onMount, onDestroy } from 'svelte';
-	import { SystemBars } from '$lib/plugins/system-bars';
+	import HeadroomHeader from '$lib/components/HeadroomHeader.svelte';
+	import BottomNav from '$lib/components/BottomNav.svelte';
+	import { systemBarsData } from '$lib/stores/systemBars';
 
 	let drawerOpen = $state(false);
-	let debugInfo = $state({
-		orientation: 0,
-		statusBar: 0,
-		navBar: 0,
-		navBarLeft: 0,
-		navBarRight: 0,
-		navBarSide: 'bottom',
-		notch: false,
-		notchTop: 0,
-		notchBottom: 0,
-		notchLeft: 0,
-		notchRight: 0
-	});
 
 	function toggleDrawer() {
 		drawerOpen = !drawerOpen;
@@ -24,139 +12,6 @@
 	function closeDrawer() {
 		drawerOpen = false;
 	}
-
-	let headerElement = $state(null);
-	let headerHeight = $state(0);
-	let scrollY = $state(0);
-	let lastScrollY = $state(0);
-	let isHeaderFrosted = $state(false);
-	let isBottomNavHidden = $state(false);
-	let headerTranslateY = $state(0);
-	let bottomNavTranslateY = $state(0);
-
-	function handleScroll() {
-		if (typeof window === 'undefined') return;
-
-		const currentScrollY = window.scrollY;
-		const scrollDelta = currentScrollY - lastScrollY;
-
-		scrollY = currentScrollY;
-
-		// Apply frosted effect when scrolled past 10px
-		isHeaderFrosted = currentScrollY >= 10;
-
-		// Header positioning: always elastic/sticky behavior
-		// Apply scroll delta to current position
-		let newHeaderTranslateY = headerTranslateY - scrollDelta;
-
-		// Constrain based on scroll position
-		if (currentScrollY <= headerHeight) {
-			// Near top: header can be anywhere from 0 (visible) to -currentScrollY (scrolled with page)
-			newHeaderTranslateY = Math.max(-currentScrollY, Math.min(0, newHeaderTranslateY));
-		} else {
-			// Past headerHeight: header can be anywhere from 0 (visible) to -headerHeight (fully hidden)
-			newHeaderTranslateY = Math.max(-headerHeight, Math.min(0, newHeaderTranslateY));
-		}
-
-		headerTranslateY = newHeaderTranslateY;
-
-		// Bottom nav behavior
-		if (currentScrollY > 100) {
-			// Check if header is fully visible
-			const headerFullyVisible = headerTranslateY === 0;
-
-			if (headerFullyVisible) {
-				// Snap bottom nav to fully visible when header is fully shown
-				bottomNavTranslateY = 0;
-			} else {
-				// Accumulate scroll delta for bottom nav (56px is nav height without Android nav bar)
-				bottomNavTranslateY = Math.max(0, Math.min(56, bottomNavTranslateY + scrollDelta));
-			}
-
-			// Dispatch event for layout overlay
-			const isHidden = bottomNavTranslateY > 28; // Consider hidden if more than halfway
-			window.dispatchEvent(new CustomEvent('bottomNavVisibilityChange', { detail: { hidden: isHidden } }));
-		} else if (currentScrollY <= 1) {
-			bottomNavTranslateY = 0;
-			window.dispatchEvent(new CustomEvent('bottomNavVisibilityChange', { detail: { hidden: false } }));
-		}
-
-		lastScrollY = currentScrollY;
-	}
-
-	onMount(() => {
-		if (headerElement) {
-			headerHeight = headerElement.offsetHeight;
-		}
-		if (typeof window !== 'undefined') {
-			window.addEventListener('scroll', handleScroll, { passive: true });
-			handleScroll();
-		}
-	});
-
-	async function updateSystemBars() {
-		if (window.Capacitor?.isNativePlatform?.()) {
-			try {
-				const data = await SystemBars.getHeights();
-				const dpr = window.devicePixelRatio || 1;
-
-				debugInfo = {
-					orientation: data.orientation,
-					statusBar: Math.round(data.statusBar / dpr),
-					navBar: Math.round(data.navigationBar / dpr),
-					navBarLeft: Math.round(data.navBarLeft / dpr),
-					navBarRight: Math.round(data.navBarRight / dpr),
-					navBarSide: data.navBarSide,
-					notch: data.notch,
-					notchTop: Math.round(data.notchTop / dpr),
-					notchBottom: Math.round(data.notchBottom / dpr),
-					notchLeft: Math.round(data.notchLeft / dpr),
-					notchRight: Math.round(data.notchRight / dpr)
-				};
-
-				console.log('System bars data:', data);
-				console.log('Debug info:', debugInfo);
-			} catch (error) {
-				console.error('Failed to get system bar heights:', error);
-			}
-		}
-	}
-
-	let configListener;
-
-	onMount(async () => {
-		// Get initial orientation and system bar info
-		await updateSystemBars();
-
-		// Listen for Android configuration changes (proper hook)
-		if (window.Capacitor?.isNativePlatform?.()) {
-			configListener = await SystemBars.addListener('configurationChanged', async () => {
-				console.log('Configuration changed - updating system bars');
-				await updateSystemBars();
-			});
-		} else {
-			// Fallback for web/browser
-			if (window.screen?.orientation) {
-				window.screen.orientation.addEventListener('change', updateSystemBars);
-			}
-			window.addEventListener('resize', updateSystemBars);
-		}
-	});
-
-	onDestroy(() => {
-		if (typeof window !== 'undefined') {
-			window.removeEventListener('scroll', handleScroll);
-
-			if (configListener) {
-				configListener.remove();
-			} else {
-				window.removeEventListener('resize', updateSystemBars);
-				if (window.screen?.orientation) {
-					window.screen.orientation.removeEventListener('change', updateSystemBars);
-				}
-			}
-		}
-	});
 </script>
 
 <div class="app-container">
@@ -167,7 +22,7 @@
 			role="button"
 			tabindex="0"
 			onclick={closeDrawer}
-			onkeydown={(e) => e.key === 'Enter' || e.key === ' ' ? closeDrawer() : null}
+			onkeydown={(e) => (e.key === 'Enter' || e.key === ' ' ? closeDrawer() : null)}
 		></div>
 	{/if}
 
@@ -179,37 +34,89 @@
 		</div>
 		<nav class="drawer-nav">
 			<a href="/app">
-				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				>
+					<path
+						d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"
+					/>
 				</svg>
 				<span>Latest</span>
 			</a>
 			<a href="/demo">
-				<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-					<path d="M9.17 6l2 2H20v10H4V6h5.17M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" />
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					width="24"
+					height="24"
+					viewBox="0 0 24 24"
+					fill="currentColor"
+				>
+					<path
+						d="M9.17 6l2 2H20v10H4V6h5.17M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"
+					/>
 				</svg>
 				<span>Folders</span>
 			</a>
 			<a href="/app">
-				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 640 640">
-					<path d="M541.4 162.6C549 155 561.7 156.9 565.5 166.9C572.3 184.6 576 203.9 576 224C576 312.4 504.4 384 416 384C398.5 384 381.6 381.2 365.8 376L178.9 562.9C150.8 591 105.2 591 77.1 562.9C49 534.8 49 489.2 77.1 461.1L264 274.2C258.8 258.4 256 241.6 256 224C256 135.6 327.6 64 416 64C436.1 64 455.4 67.7 473.1 74.5C483.1 78.3 484.9 91 477.4 98.6L388.7 187.3C385.7 190.3 384 194.4 384 198.6L384 240C384 248.8 391.2 256 400 256L441.4 256C445.6 256 449.7 254.3 452.7 251.3L541.4 162.6z"/>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					width="16"
+					height="16"
+					fill="currentColor"
+					viewBox="0 0 640 640"
+				>
+					<path
+						d="M541.4 162.6C549 155 561.7 156.9 565.5 166.9C572.3 184.6 576 203.9 576 224C576 312.4 504.4 384 416 384C398.5 384 381.6 381.2 365.8 376L178.9 562.9C150.8 591 105.2 591 77.1 562.9C49 534.8 49 489.2 77.1 461.1L264 274.2C258.8 258.4 256 241.6 256 224C256 135.6 327.6 64 416 64C436.1 64 455.4 67.7 473.1 74.5C483.1 78.3 484.9 91 477.4 98.6L388.7 187.3C385.7 190.3 384 194.4 384 198.6L384 240C384 248.8 391.2 256 400 256L441.4 256C445.6 256 449.7 254.3 452.7 251.3L541.4 162.6z"
+					/>
 				</svg>
 				<span>Scraper</span>
 			</a>
 			<a href="/app">
-				<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
-					<path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.583 8.445h.01M10.86 19.71l-6.573-6.63a.993.993 0 0 1 0-1.4l7.329-7.394A.98.98 0 0 1 12.31 4l5.734.007A1.968 1.968 0 0 1 20 5.983v5.5a.992.992 0 0 1-.316.727l-7.44 7.5a.974.974 0 0 1-1.384.001Z" />
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					width="24"
+					height="24"
+					fill="none"
+					viewBox="0 0 24 24"
+				>
+					<path
+						stroke="currentColor"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M15.583 8.445h.01M10.86 19.71l-6.573-6.63a.993.993 0 0 1 0-1.4l7.329-7.394A.98.98 0 0 1 12.31 4l5.734.007A1.968 1.968 0 0 1 20 5.983v5.5a.992.992 0 0 1-.316.727l-7.44 7.5a.974.974 0 0 1-1.384.001Z"
+					/>
 				</svg>
 				<span>Tags</span>
 			</a>
 			<a href="/app">
 				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-					<path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 13V4M7 14H5a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1h-2m-1-5-4 5-4-5m9 8h.01"/>
+					<path
+						stroke="currentColor"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M12 13V4M7 14H5a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1h-2m-1-5-4 5-4-5m9 8h.01"
+					/>
 				</svg>
 				<span>Downloads</span>
 			</a>
 			<a href="/app">
-				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				>
 					<circle cx="11" cy="11" r="7" />
 					<line x1="21" y1="21" x2="16.65" y2="16.65" />
 				</svg>
@@ -218,14 +125,8 @@
 		</nav>
 	</div>
 
-	<!-- Fixed status bar overlay -->
-	<div class="status-bar-spacer"></div>
-
-	<!-- In-flow spacer to push content down (for status bar + header) -->
-	<div class="status-bar-push"></div>
-	<div class="header-spacer" style="height: {headerHeight}px;"></div>
-
-	<header class="header" class:header-frosted={isHeaderFrosted} bind:this={headerElement} style="--header-translate-y: {headerTranslateY}px">
+	<!-- Headroom Header with auto-hide behavior -->
+	<HeadroomHeader>
 		<div class="top-bar">
 			<button class="menu-button" onclick={toggleDrawer}>☰</button>
 			<h1>ScrapeNAS</h1>
@@ -251,173 +152,259 @@
 				</svg>
 			</button>
 		</div>
-	</header>
+	</HeadroomHeader>
 
+	<!-- Page content -->
 	<main class="page-content">
 		<div class="gallery">
-			<div class="gallery-item" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #30cfd0 0%, #330867 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #ff9a56 0%, #ff6a88 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #ff6e7f 0%, #bfe9ff 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #fddb92 0%, #d1fdff 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #c471f5 0%, #fa71cd 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #fbc2eb 0%, #a6c1ee 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #96fbc4 0%, #f9f586 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #fa8bff 0%, #2bd2ff 90%, #2bff88 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #ff0844 0%, #ffb199 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #00d2ff 0%, #3a47d5 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #f78ca0 0%, #f9748f 19%, #fd868c 60%, #fe9a8b 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #08aeea 0%, #2af598 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #ff5858 0%, #f09819 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #3b41c5 0%, #a981bb 49%, #ffc8a9 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #d299c2 0%, #fef9d7 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #cfd9df 0%, #e2ebf0 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #a6c0fe 0%, #f68084 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #fccb90 0%, #d57eeb 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #30cfd0 0%, #330867 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);"></div>
-			<div class="gallery-item" style="background: linear-gradient(135deg, #cfd9df 0%, #e2ebf0 100%);"></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #30cfd0 0%, #330867 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #ff9a56 0%, #ff6a88 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #ff6e7f 0%, #bfe9ff 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #fddb92 0%, #d1fdff 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #c471f5 0%, #fa71cd 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #fbc2eb 0%, #a6c1ee 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #96fbc4 0%, #f9f586 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #fa8bff 0%, #2bd2ff 90%, #2bff88 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #ff0844 0%, #ffb199 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #00d2ff 0%, #3a47d5 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #f78ca0 0%, #f9748f 19%, #fd868c 60%, #fe9a8b 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #08aeea 0%, #2af598 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #ff5858 0%, #f09819 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #3b41c5 0%, #a981bb 49%, #ffc8a9 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #d299c2 0%, #fef9d7 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #cfd9df 0%, #e2ebf0 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #a6c0fe 0%, #f68084 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #fccb90 0%, #d57eeb 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #30cfd0 0%, #330867 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);"
+			></div>
+			<div
+				class="gallery-item"
+				style="background: linear-gradient(135deg, #cfd9df 0%, #e2ebf0 100%);"
+			></div>
 		</div>
-
-		<!-- <section class="hero">
-			<h2>Scroll to test overlays</h2>
-			<p>Watch how content flows behind Android system bars</p>
-		</section>
-
-		<section class="card purple">
-			<h3>Purple Section</h3>
-			<p>This is a vibrant purple card with some dummy content to make it taller and more scrollable.</p>
-			<a href="/demo">
-				<button>🎨 View Component Demo</button>
-			</a>
-		</section>
-
-		<section class="card cyan">
-		<h3>Cyan Dreams</h3>
-		<p>Bright cyan section with contrasting dark text. Perfect for testing visibility.</p>
-		<div class="stats">
-			<div class="stat">
-				<div class="number">1.2K</div>
-				<div class="label">Followers</div>
-			</div>
-			<div class="stat">
-				<div class="number">847</div>
-				<div class="label">Following</div>
-			</div>
-			<div class="stat">
-				<div class="number">93</div>
-				<div class="label">Posts</div>
-			</div>
-		</div>
-		</section>
-
-		<section class="card orange">
-			<h3>Orange Energy</h3>
-			<p>Hot orange section bringing the heat. Keep scrolling to see more colors!</p>
-			<div class="progress-bar">
-				<div class="progress" style="width: 65%"></div>
-			</div>
-		</section>
-
-		<section class="card green">
-			<h3>Green Zone</h3>
-			<p>Calming green area for your eyes. Notice how the nav buttons look against different backgrounds.</p>
-			<ul>
-				<li>Item One</li>
-				<li>Item Two</li>
-				<li>Item Three</li>
-				<li>Item Four</li>
-			</ul>
-		</section>
-
-		<section class="card pink">
-			<h3>Pink Paradise</h3>
-			<p>Soft pink vibes. Perfect for testing how system UI elements blend with content.</p>
-			<button>Another Button</button>
-		</section>
-
-		<section class="card blue">
-			<h3>Deep Blue</h3>
-			<p>Dark blue ocean of content. Almost at the bottom now!</p>
-			<div class="chip-container">
-				<span class="chip">Design</span>
-				<span class="chip">Mobile</span>
-				<span class="chip">Android</span>
-				<span class="chip">UI/UX</span>
-			</div>
-		</section>
-
-		<footer class="footer">
-			<p>Bottom of the page - test nav bar overlay here</p>
-			<button class="footer-btn">Tap Me</button>
-		</footer> -->
 	</main>
 
-	<!-- Bottom Navigation Bar (YouTube style) -->
-	<nav class="bottom-nav" class:snap-visible={bottomNavTranslateY === 0 && headerTranslateY === 0} style="--bottom-nav-translate-y: {bottomNavTranslateY}px; --bottom-nav-opacity: {1 - (bottomNavTranslateY / 56)};">
+	<!-- Bottom Navigation with auto-hide behavior -->
+	<BottomNav>
 		<button class="nav-item active">
-			<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-				<path d="M9.17 6l2 2H20v10H4V6h5.17M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" />
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				width="24"
+				height="24"
+				viewBox="0 0 24 24"
+				fill="currentColor"
+			>
+				<path
+					d="M9.17 6l2 2H20v10H4V6h5.17M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"
+				/>
 			</svg>
 			<span>Storage</span>
 		</button>
 		<button class="nav-item">
-			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+			>
 				<circle cx="11" cy="11" r="8" />
 				<line x1="21" y1="21" x2="16.65" y2="16.65" />
 			</svg>
 			<span>Search</span>
 		</button>
 		<button class="nav-item">
-			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-				<path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+			>
+				<path
+					d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"
+				/>
 			</svg>
 			<span>Latest</span>
 		</button>
 		<button class="nav-item">
-			<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-				<path stroke-linecap="round" stroke-linejoin="round" d="M12 13V4M7 14H5a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1h-2m-1-5-4 5-4-5m9 8h.01"/>
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				fill="none"
+				viewBox="0 0 24 24"
+				stroke="currentColor"
+				stroke-width="2"
+			>
+				<path
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					d="M12 13V4M7 14H5a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1h-2m-1-5-4 5-4-5m9 8h.01"
+				/>
 			</svg>
 			<span>Downloads</span>
 		</button>
-	</nav>
+	</BottomNav>
 
-	<!-- Debug Overlay -->
-	<div class="debug-overlay">
-		<div>ScrollY: {Math.round(scrollY)}</div>
-		<div>HeaderHeight: {headerHeight}</div>
-		<div>HeaderTranslateY: {Math.round(headerTranslateY)}</div>
-		<div>---</div>
-		<div>Orientation: {debugInfo.orientation}°</div>
-		<div>Status Bar: {debugInfo.statusBar}px</div>
-		<div>Nav Bottom: {debugInfo.navBar}px</div>
-		<div>Nav Left: {debugInfo.navBarLeft}px</div>
-		<div>Nav Right: {debugInfo.navBarRight}px</div>
-		<div>Nav Side: {debugInfo.navBarSide}</div>
-		<div>Notch: {debugInfo.notch ? 'True' : 'False'}</div>
-		<div>Notch Left: {debugInfo.notchLeft}px</div>
-		<div>Notch Right: {debugInfo.notchRight}px</div>
-	</div>
+	<!-- Debug Overlay (hidden by default, uncomment to debug) -->
+	<!-- <div class="debug-overlay">
+		<div>Orientation: {$systemBarsData.orientation}°</div>
+		<div>Status Bar: {$systemBarsData.statusBar}px</div>
+		<div>Nav Bottom: {$systemBarsData.navigationBar}px</div>
+		<div>Nav Left: {$systemBarsData.navBarLeft}px</div>
+		<div>Nav Right: {$systemBarsData.navBarRight}px</div>
+		<div>Nav Side: {$systemBarsData.navBarSide}</div>
+		<div>Notch: {$systemBarsData.notch ? 'True' : 'False'}</div>
+		<div>Notch Left: {$systemBarsData.notchLeft}px</div>
+		<div>Notch Right: {$systemBarsData.notchRight}px</div>
+	</div> -->
 </div>
 
 <style>
@@ -425,58 +412,16 @@
 		min-height: 100%;
 	}
 
-	.status-bar-spacer {
-		position: fixed;
-		top: 0;
-		left: 0;
-		right: 0;
-		height: var(--status-bar-height, 0px);
-		background-color: #000;
-		z-index: 100;
-	}
-
-	.status-bar-push {
-		height: var(--status-bar-height, 0px);
-	}
-
-	/* Hide status bar elements on web (desktop) */
-	@media (hover: hover) and (pointer: fine) {
-		.status-bar-spacer,
-		.status-bar-push {
-			display: none;
-		}
-	}
-
-	.header {
-		position: fixed;
-		top: var(--status-bar-height, 0);
-		left: 0;
-		right: 0;
-		z-index: 50;
-		transform: translateY(var(--header-translate-y, 0));
-		transition: transform 0.1s linear;
-	}
-
-	.header-frosted {
-		backdrop-filter: blur(20px) saturate(180%);
-	}
-
-	.header-frosted .top-bar {
-		background-color: rgba(22, 23, 24, 0.8) !important;
-	}
-
-	.header-frosted .middle-bar {
-		background-color: rgba(26, 27, 28, 0.8);
-		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-	}
-
+	/* Header styles */
 	.top-bar {
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
 		height: 60px;
 		background-color: #161718;
-		transition: backdrop-filter 0.3s ease, background-color 0.3s ease;
+		transition:
+			backdrop-filter 0.3s ease,
+			background-color 0.3s ease;
 	}
 
 	.middle-bar {
@@ -487,7 +432,9 @@
 		padding-left: 20px;
 		background-color: #1a1b1c;
 		border-top: 1px solid rgba(255, 255, 255, 0.05);
-		transition: backdrop-filter 0.3s ease, background-color 0.3s ease;
+		transition:
+			backdrop-filter 0.3s ease,
+			background-color 0.3s ease;
 	}
 
 	.breadcrumb {
@@ -574,7 +521,7 @@
 		font-size: 14px;
 	}
 
-	.header h1 {
+	h1 {
 		margin: 0;
 		font-size: 20px;
 		padding-right: 10px; /* Visual alignment fix - text doesn't optically center well in CSS */
@@ -589,172 +536,7 @@
 		gap: 10px;
 	}
 
-	.hero {
-		background: linear-gradient(180deg, #1a1a1a 0%, #0a0a0a 100%);
-		padding: 60px 20px;
-		text-align: center;
-	}
-
-	.hero h2 {
-		margin: 0 0 10px 0;
-		font-size: 32px;
-		background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-		-webkit-background-clip: text;
-		-webkit-text-fill-color: transparent;
-		background-clip: text;
-	}
-
-	.hero p {
-		margin: 0;
-		color: #888;
-	}
-
-	.card {
-		margin: 20px;
-		padding: 30px;
-		border-radius: 20px;
-		min-height: 200px;
-		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-	}
-
-	.card h3 {
-		margin: 0 0 15px 0;
-		font-size: 24px;
-	}
-
-	.card p {
-		margin: 0 0 20px 0;
-		line-height: 1.6;
-		opacity: 0.9;
-	}
-
-	.card.purple {
-		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-	}
-
-	.card.cyan {
-		background: linear-gradient(135deg, #06beb6 0%, #48b1bf 100%);
-		color: #0a0a0a;
-	}
-
-	.card.cyan h3,
-	.card.cyan p {
-		color: #0a0a0a;
-	}
-
-	.card.orange {
-		background: linear-gradient(135deg, #f77062 0%, #fe5196 100%);
-	}
-
-	.card.green {
-		background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-		color: #0a0a0a;
-	}
-
-	.card.green h3,
-	.card.green p,
-	.card.green ul {
-		color: #0a0a0a;
-	}
-
-	.card.pink {
-		background: linear-gradient(135deg, #fc466b 0%, #3f5efb 100%);
-	}
-
-	.card.blue {
-		background: linear-gradient(135deg, #4e54c8 0%, #8f94fb 100%);
-	}
-
-	button,
-	.footer-btn {
-		background: rgba(255, 255, 255, 0.2);
-		border: 2px solid rgba(255, 255, 255, 0.3);
-		padding: 12px 24px;
-		border-radius: 10px;
-		color: white;
-		font-size: 16px;
-		font-weight: 600;
-		cursor: pointer;
-		backdrop-filter: blur(10px);
-	}
-
-	.stats {
-		display: flex;
-		justify-content: space-around;
-		margin-top: 20px;
-	}
-
-	.stat {
-		text-align: center;
-	}
-
-	.number {
-		font-size: 28px;
-		font-weight: bold;
-		color: #0a0a0a;
-	}
-
-	.label {
-		font-size: 14px;
-		opacity: 0.7;
-		color: #0a0a0a;
-	}
-
-	.progress-bar {
-		width: 100%;
-		height: 8px;
-		background: rgba(255, 255, 255, 0.2);
-		border-radius: 4px;
-		overflow: hidden;
-		margin-top: 20px;
-	}
-
-	.progress {
-		height: 100%;
-		background: white;
-		transition: width 0.3s ease;
-	}
-
-	ul {
-		list-style: none;
-		padding: 0;
-		margin: 20px 0 0 0;
-	}
-
-	li {
-		padding: 12px;
-		background: rgba(0, 0, 0, 0.1);
-		margin-bottom: 8px;
-		border-radius: 8px;
-	}
-
-	.chip-container {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 10px;
-		margin-top: 20px;
-	}
-
-	.chip {
-		padding: 8px 16px;
-		background: rgba(255, 255, 255, 0.2);
-		border-radius: 20px;
-		font-size: 14px;
-		backdrop-filter: blur(10px);
-	}
-
-	.footer {
-		background: linear-gradient(135deg, #232526 0%, #414345 100%);
-		padding: 40px 20px;
-		text-align: center;
-	}
-
-	.footer p {
-		margin: 0 0 20px 0;
-		color: #888;
-	}
-
-	/* Drawer overlay */
+	/* Drawer styles */
 	.drawer-overlay {
 		position: fixed;
 		top: 0;
@@ -766,7 +548,6 @@
 		backdrop-filter: blur(2px);
 	}
 
-	/* Drawer */
 	.drawer {
 		position: fixed;
 		top: 0;
@@ -830,7 +611,9 @@
 		color: #ccc;
 		text-decoration: none;
 		font-size: 16px;
-		transition: background-color 0.2s ease, color 0.2s ease;
+		transition:
+			background-color 0.2s ease,
+			color 0.2s ease;
 	}
 
 	.drawer-nav a svg {
@@ -856,7 +639,9 @@
 		aspect-ratio: 1;
 		border-radius: 12px;
 		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-		transition: transform 0.2s ease, box-shadow 0.2s ease;
+		transition:
+			transform 0.2s ease,
+			box-shadow 0.2s ease;
 	}
 
 	.gallery-item:active {
@@ -864,30 +649,8 @@
 		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 	}
 
-	/* Bottom Navigation Bar */
-	.bottom-nav {
-		position: fixed;
-		bottom: 0;
-		left: 0;
-		right: 0;
-		height: calc(56px + var(--nav-bar-bottom, 0px));
-		background-color: transparent;
-		display: flex;
-		justify-content: space-around;
-		align-items: flex-start;
-		padding-top: 8px;
-		padding-bottom: var(--nav-bar-bottom, 0px);
-		z-index: 10000;
-		transform: translateY(var(--bottom-nav-translate-y, 0));
-		opacity: var(--bottom-nav-opacity, 1);
-		transition: transform 0.1s linear, opacity 0.1s linear;
-	}
-
-	.bottom-nav.snap-visible {
-		transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-	}
-
-	.nav-item {
+	/* Bottom Nav Item Styles */
+	:global(.nav-item) {
 		all: unset;
 		display: flex;
 		flex-direction: column;
@@ -900,40 +663,22 @@
 		transition: color 0.2s ease;
 	}
 
-	.nav-item:hover {
+	:global(.nav-item:hover) {
 		color: #fff;
 	}
 
-	.nav-item.active {
+	:global(.nav-item.active) {
 		color: #c89cff;
 	}
 
-	.nav-item svg {
+	:global(.nav-item svg) {
 		width: 24px;
 		height: 24px;
 	}
 
-	.nav-item span {
+	:global(.nav-item span) {
 		font-size: 11px;
 		font-weight: 500;
-	}
-
-	/* Hide bottom nav on desktop */
-	@media (hover: hover) and (pointer: fine) {
-		.bottom-nav {
-			display: none;
-		}
-	}
-
-	/* Mobile responsiveness */
-	@media (max-width: 768px) {
-		.menu-button {
-			width: 50px;
-		}
-
-		.user-avatar {
-			min-width: 65px; /* 60px visual + 5px right padding absorbed from top-bar on mobile */
-		}
 	}
 
 	/* Debug Overlay */
