@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Stubly.io</string>
-    <string name="title_activity_main">Stubly.io</string>
+    <string name="app_name">Stubly</string>
+    <string name="title_activity_main">Stubly</string>
     <string name="package_name">com.stubly.app</string>
     <string name="custom_url_scheme">com.stubly.app</string>
 </resources>
