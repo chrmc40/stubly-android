@@ -1,4 +1,4 @@
-package com.scrapenas.app;
+package com.stubly.app;
 
 import android.content.Context;
 import android.content.res.Configuration;

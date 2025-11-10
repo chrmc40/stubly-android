@@ -1,4 +1,4 @@
-package com.scrapenas.app;
+package com.stubly.app;
 
 import android.content.Intent;
 import android.content.SharedPreferences;

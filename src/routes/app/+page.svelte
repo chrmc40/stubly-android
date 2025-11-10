@@ -129,7 +129,7 @@
 	<HeadroomHeader>
 		<div class="top-bar">
 			<button class="menu-button" onclick={toggleDrawer}>☰</button>
-			<h1>ScrapeNAS</h1>
+			<h1>Stubly.io</h1>
 			<div class="status-icons">
 				<button class="user-avatar">
 					<span class="avatar-circle">A</span>

@@ -70,7 +70,7 @@
 <div class="welcome-container">
 	<div class="welcome-content">
 		<!-- Welcome Message -->
-		<h1>Welcome to ScrapeNAS</h1>
+		<h1>Welcome to Stubly.io</h1>
 		<p class="subtitle">Your NAS downloader and content manager</p>
 
 		<!-- Setup Instructions -->

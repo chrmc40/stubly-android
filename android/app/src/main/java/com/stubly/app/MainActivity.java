@@ -1,4 +1,4 @@
-package com.scrapenas.app;
+package com.stubly.app;
 
 import android.os.Bundle;
 import com.getcapacitor.BridgeActivity;
