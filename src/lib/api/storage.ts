@@ -25,16 +25,9 @@ export async function getMountPath(): Promise<string | null> {
 		const result = await StorageManager.getMountPath();
 		return result.path || null;
 	} else {
-		// Web: Use SvelteKit endpoint
-		try {
-			const res = await fetch('/api/config/storage-path');
-			if (!res.ok) return null;
-			const data = await res.json();
-			return data.path || null;
-		} catch (err) {
-			console.error('Failed to fetch storage path:', err);
-			return null;
-		}
+		// Web: No storage path configured (expected - web is dev-only)
+		// This 404 is normal behavior
+		return null;
 	}
 }
 

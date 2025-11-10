@@ -7,6 +7,8 @@
 	import { initSystemBars, cleanupSystemBars } from '$lib/stores/systemBars';
 	import { initializeApp } from '$lib/utils/startup';
 	import { appState } from '$lib/stores/appState';
+	import { initAuth } from '$lib/auth/auth';
+	import { authState } from '$lib/stores/authState';
 	import SystemBarsOverlay from '$lib/components/layout/SystemBarsOverlay.svelte';
 
 	let { children } = $props();
@@ -14,20 +16,58 @@
 	onMount(async () => {
 		if (!browser) return;
 
+		// Initialize authentication
+		await initAuth();
+
+		// Get auth state directly from store after init
+		let authStateValue;
+		const unsubscribe = authState.subscribe(state => {
+			authStateValue = state;
+		});
+
 		// Initialize app (platform detection, storage config, etc.)
 		const isConfigured = await initializeApp();
 
 		// Initialize system bars detection and CSS variables
 		await initSystemBars();
 
-		// Route to setup if not configured
+		// Auth guard: Check authentication status
 		const currentPath = window.location.pathname;
-		if (!isConfigured && currentPath !== '/setup') {
+
+		console.log('[Layout] Auth check:', {
+			isAuthenticated: authStateValue.isAuthenticated,
+			currentPath,
+			mode: authStateValue.mode
+		});
+
+		// If not authenticated and not on setup/demo pages, redirect to setup
+		if (!authStateValue.isAuthenticated &&
+		    currentPath !== '/setup' &&
+		    currentPath !== '/demo' &&
+		    currentPath !== '/') {
+			console.log('[Layout] Not authenticated, redirecting to /setup');
 			goto('/setup');
-		} else if (isConfigured && currentPath === '/setup') {
+			unsubscribe();
+			return;
+		}
+
+		// If authenticated and on setup page, redirect to app
+		if (authStateValue.isAuthenticated && currentPath === '/setup') {
+			console.log('[Layout] Already authenticated, redirecting to /app');
+			goto('/app');
+			unsubscribe();
+			return;
+		}
+
+		// Storage configuration routing (legacy - may not be needed with auth)
+		if (!isConfigured && currentPath !== '/setup' && !authStateValue.isAuthenticated) {
+			goto('/setup');
+		} else if (isConfigured && currentPath === '/setup' && authStateValue.isAuthenticated) {
 			// Already configured but on setup page - redirect to app
 			goto('/app');
 		}
+
+		unsubscribe();
 
 		// Handle Android back button
 		if ((window as any).Capacitor?.isNativePlatform?.()) {

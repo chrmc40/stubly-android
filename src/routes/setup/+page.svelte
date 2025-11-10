@@ -1,11 +1,11 @@
 <!--
-  Setup Page
+  Setup Page - Step 1: Authentication
 
-  Displays welcome screen for first-time app setup.
-  User selects storage location (Quick Start or Custom).
+  Displays login/register screen for first-time app setup.
+  After auth, user proceeds to folder setup.
 -->
 <script lang="ts">
-	import WelcomeScreen from '$lib/components/setup/WelcomeScreen.svelte';
+	import AuthScreen from '$lib/components/auth/AuthScreen.svelte';
 </script>
 
-<WelcomeScreen />
+<AuthScreen />

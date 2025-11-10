@@ -493,7 +493,7 @@
 		font-size: 24px;
 		cursor: pointer;
 		-webkit-tap-highlight-color: transparent;
-		color: #cfa9ff;
+		color: #a0a0a0;
 	}
 
 	.user-avatar {
