@@ -88,10 +88,10 @@
 					} else if (result.mode === 'offline') {
 						// Offline registration - account will sync later
 						console.log('Account created offline - will sync when online');
-						goto('/app');
+						goto('/storage');
 					} else {
 						// Online registration with immediate session
-						goto('/app');
+						goto('/storage');
 					}
 				} else {
 					error = result.error || 'Registration failed';
@@ -126,9 +126,9 @@
 					if (result.mode === 'offline') {
 						console.log('[AuthScreen] Logged in offline - limited features available');
 					}
-					// Navigate to app
-					console.log('[AuthScreen] Navigating to /app...');
-					await goto('/app');
+					// Navigate to storage (layout will handle mount check)
+					console.log('[AuthScreen] Navigating to /storage...');
+					await goto('/storage');
 					console.log('[AuthScreen] Navigation complete');
 				} else {
 					console.log('[AuthScreen] Login FAILED, error:', result.error);
@@ -193,8 +193,8 @@
 
 			if (result.success) {
 				console.log('Anonymous account created:', result.mode);
-				// Navigate to app
-				goto('/app');
+				// Navigate to storage
+				goto('/storage');
 			} else {
 				error = result.error || 'Failed to create local account';
 			}

@@ -10,6 +10,7 @@
 	import { initAuth } from '$lib/auth/auth';
 	import { authState } from '$lib/stores/authState';
 	import SystemBarsOverlay from '$lib/components/layout/SystemBarsOverlay.svelte';
+	import ModalManager from '$lib/modals/ModalManager.svelte';
 
 	let { children } = $props();
 
@@ -74,6 +75,7 @@
 		    currentPath !== '/setup' &&
 		    currentPath !== '/demo' &&
 		    currentPath !== '/pick-username' &&
+		    currentPath !== '/mount-setup' &&
 		    currentPath !== '/') {
 			console.log('[Layout] Not authenticated, redirecting to /setup');
 			goto('/setup');
@@ -84,7 +86,8 @@
 		// If authenticated, check if user needs to pick username (OAuth with auto-generated username)
 		if (authStateValue.isAuthenticated &&
 		    authStateValue.mode === 'online' &&
-		    currentPath !== '/pick-username') {
+		    currentPath !== '/pick-username' &&
+		    currentPath !== '/mount-setup') {
 			const { needsUsernamePick } = await import('$lib/auth/auth');
 			const needsPick = await needsUsernamePick();
 
@@ -96,10 +99,52 @@
 			}
 		}
 
+		// If authenticated and username picked, check if user has mount configured
+		if (authStateValue.isAuthenticated &&
+		    authStateValue.mode === 'online' &&
+		    currentPath !== '/mount-setup' &&
+		    currentPath !== '/pick-username' &&
+		    currentPath !== '/setup') {
+			// Initialize local DB if on native platform
+			if ((window as any).Capacitor?.isNativePlatform?.()) {
+				const { initLocalDB, hasMountConfigured } = await import('$lib/db/local');
+				const { shouldSync, syncFromSupabase } = await import('$lib/db/sync');
+
+				try {
+					// Initialize local database
+					await initLocalDB();
+					console.log('[Layout] Local DB initialized');
+
+					// Check if user has data in Supabase to sync
+					const hasDataToSync = await shouldSync(authStateValue.user!.id);
+
+					if (hasDataToSync) {
+						console.log('[Layout] Syncing data from Supabase...');
+						await syncFromSupabase(authStateValue.user!.id);
+						console.log('[Layout] Sync completed');
+					} else {
+						console.log('[Layout] No data to sync (first-time user)');
+					}
+
+					// Check if user has mount configured
+					const hasMount = await hasMountConfigured();
+
+					if (!hasMount) {
+						console.log('[Layout] No mount configured, redirecting to /mount-setup');
+						goto('/mount-setup');
+						unsubscribe();
+						return;
+					}
+				} catch (error) {
+					console.error('[Layout] Error initializing DB/sync:', error);
+				}
+			}
+		}
+
 		// If authenticated and on setup page, redirect to app
 		if (authStateValue.isAuthenticated && currentPath === '/setup') {
-			console.log('[Layout] Already authenticated, redirecting to /app');
-			goto('/app');
+			console.log('[Layout] Already authenticated, redirecting to /storage');
+			goto('/storage');
 			unsubscribe();
 			return;
 		}
@@ -108,8 +153,8 @@
 		if (!isConfigured && currentPath !== '/setup' && !authStateValue.isAuthenticated) {
 			goto('/setup');
 		} else if (isConfigured && currentPath === '/setup' && authStateValue.isAuthenticated) {
-			// Already configured but on setup page - redirect to app
-			goto('/app');
+			// Already configured but on setup page - redirect to storage
+			goto('/storage');
 		}
 
 		unsubscribe();
@@ -147,6 +192,9 @@
 <div class="app-content-area">
 	{@render children?.()}
 </div>
+
+<!-- Global modal manager -->
+<ModalManager />
 
 <!-- Android system bar frosted glass overlays -->
 <SystemBarsOverlay />

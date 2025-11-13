@@ -84,7 +84,6 @@ create table public.profiles (
   dmca_strike_count integer default 0,
   dmca_strike_date timestamptz,
   account_status text default 'active' check (account_status in ('active', 'suspended', 'banned')),
-  encryption_enabled boolean default false,
   create_date timestamptz default now(),
   modified_date timestamptz default now()
 );
@@ -103,7 +102,6 @@ create index idx_profiles_subscription_end on public.profiles(subscription_end_d
 create table public.files (
   user_id uuid not null references auth.users(id) on delete cascade,
   file_id text not null,
-  encrypted boolean default false,
   hash text,
   phash text,
   phash_algorithm text check (phash_algorithm in ('dhash', 'phash', 'whash')),
@@ -171,6 +169,10 @@ create table public.mounts (
   mount_label text not null,
   device_id text,
   device_path text not null,
+  storage_type text not null check (storage_type in ('cloud', 'cloud_local', 'local')) default 'cloud',
+  encryption_enabled boolean default false,
+  encryption_type text check (encryption_type in ('aes256', 'chacha20')),
+  encryption_key_hash text,
   create_date timestamptz not null default now(),
   is_active boolean default true
 );
@@ -178,6 +180,7 @@ create table public.mounts (
 create index idx_mounts_user_id on public.mounts(user_id);
 create index idx_mounts_platform on public.mounts(user_id, platform);
 create index idx_mounts_active on public.mounts(user_id, is_active);
+create index idx_mounts_encryption on public.mounts(user_id, encryption_enabled);
 
 -- ============================================================================
 -- LOCATIONS TABLE
@@ -469,7 +472,7 @@ declare
   free_tier_id integer;
 begin
   select tier_id into free_tier_id from public.subscription_tiers where tier_name = 'free' limit 1;
-  insert into public.profiles (id, username, email, android_id, is_anonymous, tier_id, account_status, encryption_enabled)
+  insert into public.profiles (id, username, email, android_id, is_anonymous, tier_id, account_status)
   values (
     new.id,
     coalesce(new.raw_user_meta_data->>'username', 'user_' || substr(new.id::text, 1, 8)),
@@ -477,8 +480,7 @@ begin
     new.raw_user_meta_data->>'android_id',
     coalesce((new.raw_user_meta_data->>'is_anonymous')::boolean, false),
     coalesce(free_tier_id, 1),
-    'active',
-    false
+    'active'
   );
   return new;
 end;

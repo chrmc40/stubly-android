@@ -27,11 +27,12 @@
 			if (needsPick) {
 				goto('/pick-username', { replaceState: true });
 			} else {
-				goto('/app', { replaceState: true });
+				// Let layout handle mount check and redirect to storage
+				goto('/storage', { replaceState: true });
 			}
 		} else {
-			// Offline user - go to app
-			goto('/app', { replaceState: true });
+			// Offline user - go to storage
+			goto('/storage', { replaceState: true });
 		}
 
 		unsubscribe();
