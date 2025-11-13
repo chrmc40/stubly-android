@@ -16,6 +16,35 @@
 	onMount(async () => {
 		if (!browser) return;
 
+		// Handle OAuth deep link callback on Android
+		if ((window as any).Capacitor?.isNativePlatform?.()) {
+			const { App } = await import('@capacitor/app');
+			App.addListener('appUrlOpen', async (event) => {
+				console.log('[Layout] Deep link received:', event.url);
+
+				// Extract authorization code from URL
+				const url = new URL(event.url);
+				const code = url.searchParams.get('code');
+
+				if (code) {
+					console.log('[Layout] Exchanging OAuth code for session');
+					const { supabase } = await import('$lib/config/supabase');
+
+					// Exchange the code for a session using PKCE
+					const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+
+					if (error) {
+						console.error('[Layout] Failed to exchange code:', error);
+					} else {
+						console.log('[Layout] Session established, reinitializing auth');
+						await initAuth();
+						// Redirect to root to trigger proper routing
+						goto('/');
+					}
+				}
+			});
+		}
+
 		// Initialize authentication
 		await initAuth();
 
@@ -44,11 +73,27 @@
 		if (!authStateValue.isAuthenticated &&
 		    currentPath !== '/setup' &&
 		    currentPath !== '/demo' &&
+		    currentPath !== '/pick-username' &&
 		    currentPath !== '/') {
 			console.log('[Layout] Not authenticated, redirecting to /setup');
 			goto('/setup');
 			unsubscribe();
 			return;
+		}
+
+		// If authenticated, check if user needs to pick username (OAuth with auto-generated username)
+		if (authStateValue.isAuthenticated &&
+		    authStateValue.mode === 'online' &&
+		    currentPath !== '/pick-username') {
+			const { needsUsernamePick } = await import('$lib/auth/auth');
+			const needsPick = await needsUsernamePick();
+
+			if (needsPick) {
+				console.log('[Layout] User needs to pick username, redirecting to /pick-username');
+				goto('/pick-username');
+				unsubscribe();
+				return;
+			}
 		}
 
 		// If authenticated and on setup page, redirect to app
@@ -108,9 +153,17 @@
 
 <style>
 	.app-content-area {
-		padding-bottom: calc(56px + var(--nav-bar-bottom, 0px));
 		padding-left: var(--nav-bar-left, 0px);
 		padding-right: var(--nav-bar-right, 0px);
 		min-height: 100dvh;
+		/* Add bottom padding for mobile bottom nav (56px nav + Android nav bar inset) */
+		padding-bottom: calc(56px + var(--nav-bar-bottom, 0px));
+	}
+
+	/* Remove bottom padding on desktop (no bottom nav) */
+	@media (hover: hover) and (pointer: fine) {
+		.app-content-area {
+			padding-bottom: 0;
+		}
 	}
 </style>

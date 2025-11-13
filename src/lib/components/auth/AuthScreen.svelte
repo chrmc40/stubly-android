@@ -2,7 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
-	import { register, login, createAnonymousAccount } from '$lib/auth/auth';
+	import { register, login, createAnonymousAccount, loginWithOAuth } from '$lib/auth/auth';
 
 	let mode: 'login' | 'register' = $state('login');
 	let username = $state('');
@@ -144,14 +144,44 @@
 		}
 	}
 
-	function handleOAuthGoogle() {
-		console.log('OAuth Google');
-		// TODO: Implement
+	async function handleOAuthGoogle() {
+		isLoading = true;
+		error = '';
+
+		try {
+			const result = await loginWithOAuth('google');
+
+			if (!result.success) {
+				error = result.error || 'Failed to login with Google';
+				isLoading = false;
+			}
+			// If successful, user will be redirected to Google, then back to app
+			// No need to set isLoading = false here
+		} catch (err: any) {
+			console.error('[AuthScreen] Google OAuth error:', err);
+			error = err.message || 'An unexpected error occurred';
+			isLoading = false;
+		}
 	}
 
-	function handleOAuthDiscord() {
-		console.log('OAuth Discord');
-		// TODO: Implement
+	async function handleOAuthDiscord() {
+		isLoading = true;
+		error = '';
+
+		try {
+			const result = await loginWithOAuth('discord');
+
+			if (!result.success) {
+				error = result.error || 'Failed to login with Discord';
+				isLoading = false;
+			}
+			// If successful, user will be redirected to Discord, then back to app
+			// No need to set isLoading = false here
+		} catch (err: any) {
+			console.error('[AuthScreen] Discord OAuth error:', err);
+			error = err.message || 'An unexpected error occurred';
+			isLoading = false;
+		}
 	}
 
 	async function handleSkip() {

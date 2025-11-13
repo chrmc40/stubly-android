@@ -453,6 +453,97 @@ export async function createAnonymousAccount(): Promise<AuthResult> {
 }
 
 /**
+ * Login with OAuth provider (Google, Discord, etc.)
+ */
+export async function loginWithOAuth(provider: 'google' | 'discord'): Promise<AuthResult> {
+	if (!browser) {
+		return { success: false, error: 'OAuth only available in browser' };
+	}
+
+	if (!isSupabaseConfigured()) {
+		return { success: false, error: 'Supabase not configured' };
+	}
+
+	if (!navigator.onLine) {
+		return { success: false, error: 'OAuth requires internet connection' };
+	}
+
+	try {
+		console.log('[Auth] Starting OAuth login with', provider);
+
+		// Use custom URL scheme on native mobile, web URL on browser
+		const isNative = (window as any).Capacitor?.isNativePlatform?.();
+		const redirectTo = isNative ? 'com.stubly.app://callback' : window.location.origin;
+
+		const { data, error } = await supabase.auth.signInWithOAuth({
+			provider: provider,
+			options: {
+				redirectTo,
+				skipBrowserRedirect: false
+			}
+		});
+
+		if (error) throw error;
+
+		console.log('[Auth] OAuth redirect initiated');
+
+		// User will be redirected to provider, then back to our app at "/"
+		// The root page will check auth and username before redirecting
+		return { success: true, mode: 'online' };
+	} catch (error: any) {
+		console.error('[Auth] OAuth login failed:', error);
+		return {
+			success: false,
+			error: error.message || `Failed to login with ${provider}`
+		};
+	}
+}
+
+/**
+ * Check if user needs to pick a username (OAuth users with auto-generated usernames)
+ */
+export async function needsUsernamePick(): Promise<boolean> {
+	if (!browser || !isSupabaseConfigured()) return false;
+
+	try {
+		const { data: { session } } = await supabase.auth.getSession();
+		if (!session?.user) {
+			console.log('[Auth] needsUsernamePick: No session');
+			return false;
+		}
+
+		console.log('[Auth] Checking username for user:', session.user.id);
+
+		// Get profile
+		const { data: profile, error } = await supabase
+			.from('profiles')
+			.select('username')
+			.eq('id', session.user.id)
+			.maybeSingle();
+
+		console.log('[Auth] Profile query result:', { profile, error });
+
+		if (error) {
+			console.error('[Auth] Error fetching profile:', error);
+			return false;
+		}
+
+		if (!profile) {
+			console.log('[Auth] No profile found - might need to create one');
+			return false;
+		}
+
+		// Check if username is auto-generated (starts with 'user_')
+		const needsPick = profile.username.startsWith('user_');
+		console.log('[Auth] Username check:', { username: profile.username, needsPick });
+		return needsPick;
+	} catch (error) {
+		console.error('[Auth] Exception checking username:', error);
+		return false;
+	}
+}
+
+/**
  * Logout
  */
 export async function logout(): Promise<void> {

@@ -5,8 +5,8 @@
 	let isBottomNavHidden = $state(false);
 	let currentPath = $derived($page.url.pathname);
 
-	// Hide bottom nav overlay on setup page (fullscreen pages)
-	let hideOverlay = $derived(currentPath === '/setup');
+	// Hide bottom nav overlay on setup and pick-username pages (fullscreen onboarding pages)
+	let hideOverlay = $derived(currentPath === '/setup' || currentPath === '/pick-username');
 
 	function handleBottomNavVisibilityChange(e: CustomEvent) {
 		isBottomNavHidden = e.detail.hidden;
