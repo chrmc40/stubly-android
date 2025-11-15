@@ -12,7 +12,8 @@ begin
   execute 'drop table if exists public.file_tags cascade';
   execute 'drop table if exists public.posts cascade';
   execute 'drop table if exists public.source cascade';
-  execute 'drop table if exists public.locations cascade';
+  execute 'drop table if exists public.files cascade';
+  execute 'drop table if exists public.meta cascade';
   execute 'drop table if exists public.folders cascade';
   execute 'drop table if exists public.mount_pairs cascade';
   execute 'drop table if exists public.mounts cascade';
@@ -22,7 +23,6 @@ begin
   execute 'drop table if exists public.user_settings_crawl cascade';
   execute 'drop table if exists public.user_settings_folders cascade';
   execute 'drop table if exists public.user_settings_search cascade';
-  execute 'drop table if exists public.files cascade';
   execute 'drop table if exists public.profiles cascade';
   execute 'drop table if exists public.subscription_tiers cascade';
   execute 'drop trigger if exists on_auth_user_created on auth.users';
@@ -96,18 +96,15 @@ create index idx_profiles_status on public.profiles(account_status);
 create index idx_profiles_subscription_end on public.profiles(subscription_end_date);
 
 -- ============================================================================
--- FILES TABLE
+-- META TABLE (file content metadata - deduplicated by hash)
 -- ============================================================================
 
-create table public.files (
-  file_id text primary key,
-  user_id uuid not null references auth.users(id) on delete cascade,
-  hash text,
+create table public.meta (
+  meta_hash text primary key,
   phash text,
   phash_algorithm text check (phash_algorithm in ('dhash', 'phash', 'whash')),
-  type text not null check (type in ('image', 'video', 'audio', 'url')),
+  type text not null check (type in ('image', 'video', 'audio')),
   mime_type text,
-  local_size bigint,
   format text,
   width integer,
   height integer,
@@ -121,40 +118,13 @@ create table public.files (
   audio_bitrate bigint,
   audio_sample_rate integer,
   audio_channels integer,
-  user_description text,
   create_date timestamptz not null default now(),
-  modified_date timestamptz not null default now(),
-  user_edited_date timestamptz
+  modified_date timestamptz not null default now()
 );
 
-create index idx_files_user_id on public.files(user_id);
-create index idx_files_type on public.files(user_id, type);
-create index idx_files_created on public.files(user_id, create_date desc);
-create index idx_files_size on public.files(user_id, local_size desc);
-create index idx_files_hash on public.files(hash);
-create index idx_files_phash on public.files(phash) where phash is not null;
-
--- ============================================================================
--- SOURCE TABLE
--- ============================================================================
-
-create table public.source (
-  user_id uuid not null references auth.users(id) on delete cascade,
-  file_id text not null references public.files(file_id) on delete cascade,
-  url text not null,
-  content_type text,
-  remote_size bigint,
-  is_file boolean default true,
-  url_source text,
-  iframe boolean default false,
-  embed text,
-  modified_date timestamptz not null default now(),
-  primary key (user_id, file_id, url)
-);
-
-create index idx_source_file_id on public.source(file_id);
-create index idx_source_url on public.source(url);
-create index idx_source_domain on public.source(user_id, url_source);
+create index idx_meta_type on public.meta(type);
+create index idx_meta_mime on public.meta(mime_type);
+create index idx_meta_phash on public.meta(phash) where phash is not null;
 
 -- ============================================================================
 -- MOUNTS TABLE
@@ -181,15 +151,18 @@ create index idx_mounts_active on public.mounts(user_id, is_active);
 create index idx_mounts_encryption on public.mounts(user_id, encryption_enabled);
 
 -- ============================================================================
--- LOCATIONS TABLE
+-- FILES TABLE (actual file locations - one record per file on mount)
 -- ============================================================================
 
-create table public.locations (
-  location_id serial primary key,
+create table public.files (
+  file_id bigserial primary key,
   user_id uuid not null references auth.users(id) on delete cascade,
-  file_id text not null references public.files(file_id) on delete cascade,
+  meta_hash text references public.meta(meta_hash) on delete set null,
   mount_id integer not null references public.mounts(mount_id) on delete cascade,
   file_path text not null,
+  type text not null check (type in ('image', 'video', 'audio', 'url')),
+  local_size bigint,
+  user_description text,
   has_thumb boolean default false,
   thumb_path text,
   thumb_width integer,
@@ -200,13 +173,41 @@ create table public.locations (
   sprite_path text,
   sync_date timestamptz,
   local_modified timestamptz,
-  unique (user_id, file_id, mount_id)
+  create_date timestamptz not null default now(),
+  modified_date timestamptz not null default now(),
+  user_edited_date timestamptz,
+  unique (user_id, mount_id, file_path)
 );
 
-create index idx_locations_file_id on public.locations(file_id);
-create index idx_locations_mount_id on public.locations(mount_id);
-create index idx_locations_user_file_mount on public.locations(user_id, file_id, mount_id);
-create index idx_locations_path on public.locations(user_id, mount_id, file_path);
+create index idx_files_user_id on public.files(user_id);
+create index idx_files_mount on public.files(mount_id, file_path);
+create index idx_files_user_mount_path on public.files(user_id, mount_id, file_path);
+create index idx_files_meta_hash on public.files(meta_hash) where meta_hash is not null;
+create index idx_files_type on public.files(user_id, type);
+create index idx_files_created on public.files(user_id, create_date desc);
+create index idx_files_size on public.files(user_id, local_size desc);
+
+-- ============================================================================
+-- SOURCE TABLE
+-- ============================================================================
+
+create table public.source (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  file_id bigint not null references public.files(file_id) on delete cascade,
+  url text not null,
+  content_type text,
+  remote_size bigint,
+  is_file boolean default true,
+  url_source text,
+  iframe boolean default false,
+  embed text,
+  modified_date timestamptz not null default now(),
+  primary key (user_id, file_id, url)
+);
+
+create index idx_source_file_id on public.source(file_id);
+create index idx_source_url on public.source(url);
+create index idx_source_domain on public.source(user_id, url_source);
 
 -- ============================================================================
 -- FOLDERS TABLE
@@ -270,7 +271,7 @@ create index idx_tags_remote on public.tags(remote_tag_id) where remote_tag_id i
 
 create table public.file_tags (
   user_id uuid not null references auth.users(id) on delete cascade,
-  file_id text not null references public.files(file_id) on delete cascade,
+  file_id bigint not null references public.files(file_id) on delete cascade,
   tag_id integer not null references public.tags(tag_id) on delete cascade,
   create_date timestamptz not null default now(),
   modified_date timestamptz not null default now(),
@@ -288,7 +289,7 @@ create index idx_file_tags_user on public.file_tags(user_id);
 create table public.posts (
   post_id serial primary key,
   user_id uuid not null references auth.users(id) on delete cascade,
-  file_id text not null references public.files(file_id) on delete cascade,
+  file_id bigint not null references public.files(file_id) on delete cascade,
   url text not null,
   domain text,
   post_date timestamptz,
@@ -314,15 +315,13 @@ create index idx_posts_url on public.posts(url);
 create table public.deletions (
   deletion_id serial primary key,
   user_id uuid not null references auth.users(id) on delete cascade,
-  file_id text not null,
-  mount_id integer not null references public.mounts(mount_id) on delete cascade,
+  file_id bigint not null,
   deleted_date timestamptz not null default now(),
   synced_to_pairs boolean default false
 );
 
 create index idx_deletions_user_id on public.deletions(user_id);
 create index idx_deletions_file_id on public.deletions(file_id);
-create index idx_deletions_mount_id on public.deletions(mount_id);
 create index idx_deletions_synced on public.deletions(synced_to_pairs);
 create index idx_deletions_date on public.deletions(deleted_date desc);
 
@@ -396,10 +395,10 @@ create table public.user_settings_search (
 
 alter table public.subscription_tiers enable row level security;
 alter table public.profiles enable row level security;
+alter table public.meta enable row level security;
 alter table public.files enable row level security;
 alter table public.source enable row level security;
 alter table public.mounts enable row level security;
-alter table public.locations enable row level security;
 alter table public.folders enable row level security;
 alter table public.mount_pairs enable row level security;
 alter table public.tags enable row level security;
@@ -424,24 +423,27 @@ create policy "profiles_select_public" on public.profiles for select using (true
 create policy "profiles_update_own" on public.profiles for update using (auth.uid() = id);
 create policy "profiles_insert_own" on public.profiles for insert with check (auth.uid() = id);
 
--- Files and related tables
--- Allow insert if user is the uploader
-create policy "users_insert_files" on public.files for insert with check (auth.uid() = user_id);
--- Allow select if user owns the file OR has a location record for it
-create policy "users_select_files" on public.files for select using (
-  auth.uid() = user_id
-  or exists (
-    select 1 from public.locations
-    where locations.file_id = files.file_id
-    and locations.user_id = auth.uid()
+-- Meta: anyone can read (for deduplication checks), only insert/update if you own a file with that hash
+create policy "meta_select_all" on public.meta for select using (true);
+create policy "meta_insert" on public.meta for insert with check (
+  exists (
+    select 1 from public.files
+    where files.meta_hash = meta.meta_hash
+    and files.user_id = auth.uid()
   )
 );
--- Allow update/delete only if user owns the file
-create policy "users_update_files" on public.files for update using (auth.uid() = user_id);
-create policy "users_delete_files" on public.files for delete using (auth.uid() = user_id);
+create policy "meta_update" on public.meta for update using (
+  exists (
+    select 1 from public.files
+    where files.meta_hash = meta.meta_hash
+    and files.user_id = auth.uid()
+  )
+);
+
+-- Files and related tables
+create policy "users_own_files" on public.files for all using (auth.uid() = user_id);
 create policy "users_own_source" on public.source for all using (auth.uid() = user_id);
 create policy "users_own_mounts" on public.mounts for all using (auth.uid() = user_id);
-create policy "users_own_locations" on public.locations for all using (auth.uid() = user_id);
 create policy "users_own_folders" on public.folders for all using (auth.uid() = user_id);
 create policy "users_own_tags" on public.tags for all using (auth.uid() = user_id);
 create policy "users_own_file_tags" on public.file_tags for all using (auth.uid() = user_id);
@@ -476,6 +478,8 @@ $$ language plpgsql;
 
 create trigger set_updated_at_profiles before update on public.profiles for each row execute function public.handle_updated_at();
 create trigger set_updated_at_tiers before update on public.subscription_tiers for each row execute function public.handle_updated_at();
+create trigger set_updated_at_meta before update on public.meta for each row execute function public.handle_updated_at();
+create trigger set_updated_at_files before update on public.files for each row execute function public.handle_updated_at();
 
 -- Auto-create profile for new users
 create or replace function public.handle_new_user() returns trigger as $$

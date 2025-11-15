@@ -8,6 +8,8 @@
 drop trigger if exists on_auth_user_created on auth.users;
 drop trigger if exists set_updated_at_profiles on public.profiles;
 drop trigger if exists set_updated_at_tiers on public.subscription_tiers;
+drop trigger if exists set_updated_at_meta on public.meta;
+drop trigger if exists set_updated_at_files on public.files;
 drop trigger if exists file_tags_insert on public.file_tags;
 drop trigger if exists file_tags_delete on public.file_tags;
 
@@ -34,10 +36,10 @@ drop table if exists public.file_tags cascade;
 drop table if exists public.tags cascade;
 drop table if exists public.mount_pairs cascade;
 drop table if exists public.folders cascade;
-drop table if exists public.locations cascade;
-drop table if exists public.mounts cascade;
 drop table if exists public.source cascade;
 drop table if exists public.files cascade;
+drop table if exists public.meta cascade;
+drop table if exists public.mounts cascade;
 drop table if exists public.profiles cascade;
 drop table if exists public.subscription_tiers cascade;
 
