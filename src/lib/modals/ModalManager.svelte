@@ -24,9 +24,11 @@
 </script>
 
 {#if modalState?.component}
-	<svelte:component
-		this={modalState.component}
-		{...modalState.props}
-		onclose={closeModal}
-	/>
+	{#key modalState}
+		<svelte:component
+			this={modalState.component}
+			{...modalState.props}
+			onclose={closeModal}
+		/>
+	{/key}
 {/if}

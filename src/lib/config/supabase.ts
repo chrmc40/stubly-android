@@ -44,6 +44,40 @@ export const supabase = createClient(
 export interface Database {
 	public: {
 		Tables: {
+			files: {
+				Row: {
+					file_id: string;
+					user_id: string;
+					hash: string | null;
+					phash: string | null;
+					phash_algorithm: string | null;
+					type: 'image' | 'video' | 'audio' | 'url';
+					mime_type: string | null;
+					local_size: number | null;
+					format: string | null;
+					width: number | null;
+					height: number | null;
+					duration: number | null;
+					video_codec: string | null;
+					video_bitrate: number | null;
+					video_framerate: number | null;
+					video_color_space: string | null;
+					video_bit_depth: number | null;
+					audio_codec: string | null;
+					audio_bitrate: number | null;
+					audio_sample_rate: number | null;
+					audio_channels: number | null;
+					user_description: string | null;
+					create_date: string;
+					modified_date: string;
+					user_edited_date: string | null;
+				};
+				Insert: Omit<Database['public']['Tables']['files']['Row'], 'create_date' | 'modified_date'> & {
+					create_date?: string;
+					modified_date?: string;
+				};
+				Update: Partial<Database['public']['Tables']['files']['Insert']>;
+			};
 			subscription_tiers: {
 				Row: {
 					tier_id: number;
@@ -118,6 +152,14 @@ export interface Database {
 			};
 			record_dmca_strike: {
 				Args: { user_id: string };
+				Returns: void;
+			};
+			increment_storage_usage: {
+				Args: { p_user_id: string; p_bytes: number };
+				Returns: void;
+			};
+			decrement_storage_usage: {
+				Args: { p_user_id: string; p_bytes: number };
 				Returns: void;
 			};
 		};

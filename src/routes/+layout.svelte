@@ -174,6 +174,33 @@
 					goto('/app');
 				}
 			});
+
+			// Handle app state changes
+			App.addListener('appStateChange', async ({ isActive }) => {
+				if (!isActive) {
+					// App going to background - logout for security
+					console.log('[Layout] App going to background, logging out for security...');
+					const { logout } = await import('$lib/auth/auth');
+					await logout();
+				} else {
+					// App becoming active again - reinitialize system bars
+					console.log('[Layout] App resuming, reinitializing system bars...');
+					await initSystemBars();
+				}
+			});
+
+			// Handle app pause (alternative event)
+			App.addListener('pause', async () => {
+				console.log('[Layout] App paused, logging out for security...');
+				const { logout } = await import('$lib/auth/auth');
+				await logout();
+			});
+
+			// Handle app resume (alternative event)
+			App.addListener('resume', async () => {
+				console.log('[Layout] App resumed, reinitializing system bars...');
+				await initSystemBars();
+			});
 		}
 	});
 

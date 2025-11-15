@@ -4,7 +4,7 @@
 	"version": "0.0.1",
 	"type": "module",
 	"scripts": {
-		"dev": "vite dev",
+		"dev": "node scripts/dev-with-log.cjs",
 		"build": "vite build",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
@@ -23,12 +23,16 @@
 		"vite": "^7.2.2"
 	},
 	"dependencies": {
+		"@aws-sdk/client-s3": "^3.932.0",
+		"@aws-sdk/s3-request-presigner": "^3.932.0",
 		"@capacitor-community/sqlite": "^7.0.2",
 		"@capacitor/android": "^7.4.4",
 		"@capacitor/app": "^7.1.0",
 		"@capacitor/cli": "^7.4.4",
 		"@capacitor/core": "^7.4.4",
 		"@capacitor/device": "^7.0.2",
+		"@capacitor/preferences": "^7.0.2",
+		"@supabase/ssr": "^0.7.0",
 		"@supabase/supabase-js": "^2.80.0",
 		"bcryptjs": "^3.0.3",
 		"lucide-svelte": "^0.553.0",

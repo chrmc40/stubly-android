@@ -29,12 +29,12 @@ serve(async (req) => {
       )
     }
 
-    // Check if user already has a Wasabi mount
+    // Check if user already has a Backblaze mount
     const { data: existingMounts } = await supabaseClient
       .from('mounts')
       .select('mount_id')
       .eq('user_id', user.id)
-      .eq('platform', 'Wasabi')
+      .eq('platform', 'Backblaze')
       .eq('is_active', true)
       .limit(1)
 
@@ -42,28 +42,28 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           success: true,
-          message: 'Wasabi mount already exists',
+          message: 'Backblaze mount already exists',
           mount_id: existingMounts[0].mount_id
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Get Wasabi credentials from environment
-    const wasabiAccessKey = Deno.env.get('WASABI_ACCESS_KEY_ID')
-    const wasabiSecretKey = Deno.env.get('WASABI_SECRET_ACCESS_KEY')
-    const wasabiBucket = Deno.env.get('WASABI_BUCKET_NAME')
-    const wasabiRegion = Deno.env.get('WASABI_REGION')
-    const wasabiEndpoint = Deno.env.get('WASABI_ENDPOINT')
+    // Get Backblaze B2 credentials from environment
+    const backblazeKeyId = Deno.env.get('BACKBLAZE_KEY_ID')
+    const backblazeAppKey = Deno.env.get('BACKBLAZE_APPLICATION_KEY')
+    const backblazeBucketFiles = Deno.env.get('BACKBLAZE_BUCKET_FILES')
+    const backblazeRegion = Deno.env.get('BACKBLAZE_REGION')
+    const backblazeEndpoint = Deno.env.get('BACKBLAZE_ENDPOINT')
 
-    if (!wasabiAccessKey || !wasabiSecretKey || !wasabiBucket || !wasabiRegion || !wasabiEndpoint) {
-      throw new Error('Wasabi credentials not configured')
+    if (!backblazeKeyId || !backblazeAppKey || !backblazeBucketFiles || !backblazeRegion || !backblazeEndpoint) {
+      throw new Error('Backblaze B2 credentials not configured')
     }
 
-    // User's folder path in Wasabi
-    const userFolderPath = `users/${user.id}/`
+    // Files bucket path
+    const devicePath = `b2://${backblazeBucketFiles}/`
 
-    // Note: We don't actually need to create the folder in Wasabi
+    // Note: We don't actually need to create the folder in Backblaze B2
     // S3-compatible storage creates folders automatically when you upload files
     // Just create the mount record in the database
 
@@ -72,9 +72,9 @@ serve(async (req) => {
       .from('mounts')
       .insert({
         user_id: user.id,
-        platform: 'Wasabi',
+        platform: 'Backblaze',
         mount_label: 'Cloud Storage',
-        device_path: userFolderPath,
+        device_path: devicePath,
         storage_type: 'cloud',
         encryption_enabled: false,
         is_active: true
@@ -88,13 +88,13 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         mount_id: mount.mount_id,
-        path: userFolderPath
+        path: devicePath
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (error) {
-    console.error('Error creating Wasabi mount:', error)
+    console.error('Error creating Backblaze mount:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

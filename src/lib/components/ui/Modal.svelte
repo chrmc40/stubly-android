@@ -1,14 +1,25 @@
 <script lang="ts">
+	import { onMount, onDestroy } from 'svelte';
 	import { X } from 'lucide-svelte';
 
 	let {
 		open = $bindable(false),
 		title = '',
-		children
+		children,
+		onclose
+	}: {
+		open?: boolean;
+		title?: string;
+		children?: any;
+		onclose?: () => void;
 	} = $props();
+
+	let keyboardHeight = $state(0);
+	let backdropElement: HTMLDivElement;
 
 	function close() {
 		open = false;
+		onclose?.();
 	}
 
 	function handleBackdropClick(e: MouseEvent) {
@@ -22,16 +33,45 @@
 			close();
 		}
 	}
+
+	// Detect keyboard height using Visual Viewport API
+	function updateKeyboardHeight() {
+		if (typeof window !== 'undefined' && window.visualViewport) {
+			const viewport = window.visualViewport;
+			const windowHeight = window.innerHeight;
+			const viewportHeight = viewport.height;
+
+			// Keyboard height is the difference
+			keyboardHeight = Math.max(0, windowHeight - viewportHeight);
+		}
+	}
+
+	onMount(() => {
+		if (typeof window !== 'undefined' && window.visualViewport) {
+			window.visualViewport.addEventListener('resize', updateKeyboardHeight);
+			window.visualViewport.addEventListener('scroll', updateKeyboardHeight);
+			updateKeyboardHeight();
+		}
+	});
+
+	onDestroy(() => {
+		if (typeof window !== 'undefined' && window.visualViewport) {
+			window.visualViewport.removeEventListener('resize', updateKeyboardHeight);
+			window.visualViewport.removeEventListener('scroll', updateKeyboardHeight);
+		}
+	});
 </script>
 
 {#if open}
 	<div
+		bind:this={backdropElement}
 		class="modal-backdrop"
 		role="dialog"
 		aria-modal="true"
 		onclick={handleBackdropClick}
 		onkeydown={handleKeydown}
 		tabindex="-1"
+		style="--keyboard-height: {keyboardHeight}px"
 	>
 		<div class="modal-content">
 			<div class="modal-header">
@@ -62,6 +102,8 @@
 		justify-content: center;
 		padding: 20px;
 		animation: fadeIn 0.2s ease;
+		/* Adjust padding when keyboard is visible */
+		padding-bottom: calc(20px + var(--keyboard-height, 0px));
 	}
 
 	@keyframes fadeIn {
@@ -80,6 +122,8 @@
 		flex-direction: column;
 		animation: slideUp 0.3s ease;
 		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+		/* Adjust max-height when keyboard is visible */
+		max-height: calc(80vh - var(--keyboard-height, 0px));
 	}
 
 	@keyframes slideUp {

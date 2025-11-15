@@ -32,17 +32,13 @@ export async function openModal<K extends ModalKey>(
 		// Load the component
 		const component = await loader();
 
-		// If the same modal key is already mounted, avoid re-setting
-		if (lastModalKey !== name) {
-			modalState = {
-				component,
-				props: { ...(props || {}), __modalKey: name } as any
-			};
-			lastModalKey = name;
-			console.log(`[modalStore] Opened modal: ${String(name)}`);
-		} else {
-			console.log(`[modalStore] Modal ${String(name)} already open`);
-		}
+		// Set the modal state
+		modalState = {
+			component,
+			props: { ...(props || {}), __modalKey: name } as any
+		};
+		lastModalKey = name;
+		console.log(`[modalStore] Opened modal: ${String(name)}`);
 	} catch (err) {
 		console.error(`[modalStore] Error loading modal component: ${String(err)}`);
 	}

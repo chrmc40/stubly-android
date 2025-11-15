@@ -2,10 +2,12 @@
 	import HeadroomHeader from '$lib/components/layout/HeadroomHeader.svelte';
 	import BottomNav from '$lib/components/layout/BottomNav.svelte';
 	import { Paperclip } from 'lucide-svelte';
+	import { showModal } from '$lib/modals/modalStore.svelte';
 
 	let drawerOpen = $state(false);
 	let downloadBarActive = $state(false);
 	let downloadInputElement: HTMLInputElement;
+	let currentPath = $state<string[]>([]); // Current folder path
 
 	function toggleDrawer() {
 		drawerOpen = !drawerOpen;
@@ -23,6 +25,24 @@
 			setTimeout(() => {
 				downloadInputElement.focus();
 			}, 100);
+		}
+	}
+
+	async function handleCreateFolder() {
+		const result = await showModal('CreateFolder', { path: currentPath });
+
+		if (result?.status === 'completed') {
+			console.log('Folder created:', result.data.folderName);
+			// TODO: Refresh folder list
+		}
+	}
+
+	async function handleUpload() {
+		const result = await showModal('Upload', { path: currentPath, autoOpenFileInput: true });
+
+		if (result?.success) {
+			console.log('Files uploaded:', result.uploadedFiles);
+			// TODO: Refresh file list
 		}
 	}
 </script>
@@ -129,12 +149,12 @@
 						<path d="M12 5v14M19 12l-7 7-7-7"/>
 					</svg>
 				</button>
-				<button class="paperclip-button" aria-label="Attach">
+				<button class="paperclip-button" aria-label="Attach" onclick={handleUpload}>
 					<Paperclip size={20} strokeWidth={2} />
 				</button>
 			</div>
 			<div class="right-buttons">
-				<button class="folder-button" aria-label="New folder">
+				<button class="folder-button" aria-label="New folder" onclick={handleCreateFolder}>
 					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
 						<path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-1 8h-3v3h-2v-3h-3v-2h3V9h2v3h3v2z"/>
 					</svg>

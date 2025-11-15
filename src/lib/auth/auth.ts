@@ -16,11 +16,14 @@ import {
 	checkRateLimit,
 	recordFailedLogin,
 	resetLoginAttempts,
-	saveLocalSession,
-	getLocalSession,
-	clearLocalSession,
 	updateUserSupabaseId
 } from './local-db';
+import {
+	saveSecureSession,
+	getSecureSession,
+	clearSecureSession,
+	getStorageInfo
+} from './secure-storage';
 
 export interface AuthResult {
 	success: boolean;
@@ -38,6 +41,7 @@ export async function initAuth(): Promise<void> {
 	if (!browser) return;
 
 	console.log('[Auth] Initializing auth system...');
+	console.log('[Auth] Using secure storage:', getStorageInfo());
 
 	// Initialize local database on native platform
 	if (Capacitor.isNativePlatform() && !dbInitialized) {
@@ -51,42 +55,39 @@ export async function initAuth(): Promise<void> {
 		}
 	}
 
-	// Check for existing Supabase session
-	if (isSupabaseConfigured()) {
-		console.log('[Auth] Checking for Supabase session...');
-		const {
-			data: { session }
-		} = await supabase.auth.getSession();
+	// Check for secure session first (NEW - encrypted storage)
+	const secureSession = await getSecureSession();
+	if (secureSession) {
+		console.log('[Auth] Secure session found, restoring...');
 
-		console.log('[Auth] Supabase session check result:', session ? 'Session found' : 'No session');
+		// For online mode, restore Supabase session
+		if (isSupabaseConfigured()) {
+			const {
+				data: { session }
+			} = await supabase.auth.getSession();
 
-		if (session) {
-			console.log('[Auth] Restoring Supabase session for user:', session.user.email);
-			authState.setOnlineAuth(session.user, session);
-			// Cache to local DB if on native
-			if (Capacitor.isNativePlatform() && dbInitialized) {
-				await cacheUserLocally(session.user.email!, session.user.id);
-			}
-			console.log('[Auth] Init complete - authenticated online');
-			return;
-		}
-	}
-
-	// Check for local session (offline mode)
-	if (Capacitor.isNativePlatform() && dbInitialized) {
-		console.log('[Auth] Checking for local session...');
-		const localSession = await getLocalSession();
-		if (localSession) {
-			console.log('[Auth] Local session found, looking up user...');
-			const user = await getLocalUserByUsername(localSession.userId);
-			if (user) {
-				console.log('[Auth] Restoring offline session for user:', user.username);
-				authState.setOfflineAuth(user.username, user.is_anonymous);
-				console.log('[Auth] Init complete - authenticated offline');
+			if (session) {
+				console.log('[Auth] Supabase session found for user:', session.user.email);
+				authState.setOnlineAuth(session.user, session);
+				console.log('[Auth] Init complete - authenticated online (secure)');
 				return;
 			}
 		}
-		console.log('[Auth] No local session found');
+
+		// For offline mode, restore from local DB
+		if (Capacitor.isNativePlatform() && dbInitialized) {
+			const user = await getLocalUserByUsername(secureSession.userId);
+			if (user) {
+				console.log('[Auth] Restoring offline session for user:', user.username);
+				authState.setOfflineAuth(user.username, user.is_anonymous);
+				console.log('[Auth] Init complete - authenticated offline (secure)');
+				return;
+			}
+		}
+
+		// Session found in secure storage but invalid - clear it
+		console.log('[Auth] Secure session invalid, clearing...');
+		await clearSecureSession();
 	}
 
 	// No session found
@@ -260,16 +261,19 @@ export async function login(usernameOrEmail: string, password: string): Promise<
 			if (error) throw error;
 			if (!data.session) throw new Error('No session returned');
 
-			// Cache locally
+			// Save session to secure storage (encrypted)
+			console.log('[Auth] Saving session to secure storage...');
+			await saveSecureSession({
+				userId: data.user.id,
+				accessToken: data.session.access_token,
+				refreshToken: data.session.refresh_token,
+				expiresAt: Math.floor(Date.now() / 1000) + (data.session.expires_in || 3600)
+			});
+
+			// Cache user info locally
 			if (Capacitor.isNativePlatform() && dbInitialized) {
-				console.log('[Auth] Caching user locally...');
+				console.log('[Auth] Caching user info locally...');
 				await cacheUserLocally(usernameOrEmail, data.user.id);
-				await saveLocalSession(
-					data.user.id,
-					data.session.access_token,
-					data.session.refresh_token,
-					Math.floor(Date.now() / 1000) + 3600
-				);
 				console.log('[Auth] Local cache saved');
 			}
 
@@ -349,6 +353,15 @@ export async function login(usernameOrEmail: string, password: string): Promise<
 
 			// Success - reset attempts
 			await resetLoginAttempts(usernameOrEmail);
+
+			// Save session to secure storage (offline mode)
+			console.log('[Auth] Saving offline session to secure storage...');
+			await saveSecureSession({
+				userId: user.username,
+				accessToken: '', // No tokens in offline mode
+				refreshToken: '',
+				expiresAt: Math.floor(Date.now() / 1000) + (7 * 24 * 3600) // 7 days
+			});
 
 			// Set offline auth state
 			console.log('[Auth] Setting offline auth state...');
@@ -547,18 +560,20 @@ export async function needsUsernamePick(): Promise<boolean> {
  * Logout
  */
 export async function logout(): Promise<void> {
+	console.log('[Auth] Logging out...');
+
 	// Logout from Supabase
 	if (isSupabaseConfigured()) {
 		await supabase.auth.signOut();
 	}
 
-	// Clear local session
-	if (Capacitor.isNativePlatform() && dbInitialized) {
-		await clearLocalSession();
-	}
+	// Clear secure session (encrypted storage)
+	await clearSecureSession();
 
 	// Clear auth state
 	authState.logout();
+
+	console.log('[Auth] Logout complete');
 }
 
 /**

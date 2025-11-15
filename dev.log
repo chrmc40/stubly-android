@@ -1,0 +1,37 @@
+
+  VITE v7.2.2  ready in 748 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
+  ➜  press h + enter to show help
+
+[404] GET /favicon.ico
+6:09:18 PM [vite-plugin-svelte] src/lib/modals/ModalManager.svelte:28:2 `<svelte:component>` is deprecated in runes mode — components are dynamic by default
+https://svelte.dev/e/svelte_component_deprecated
+6:09:39 PM [vite-plugin-svelte] src/routes/storage/+page.svelte:388:1 Unused CSS selector ".paperclip-button svg"
+https://svelte.dev/e/css_unused_selector
+
+Google Chrome is requesting /.well-known/appspecific/com.chrome.devtools.json to automatically configure devtools project settings. To learn why, and how to prevent this message, see https://svelte.dev/docs/cli/devtools-json
+
+[Upload API] Upload request received
+[Upload API] Using Authorization header token
+[Upload API] Token validated for user: d9c886cc-1c93-419d-934d-caed5dbd8e51
+[Upload API] User authenticated: d9c886cc-1c93-419d-934d-caed5dbd8e51
+[Upload API] File: avatar.png Size: 1004 Path: []
+[Upload API] Content hash: 72cc819208a2f56ec23548bbd0af463a29cf6b66a9c6461586793af3028cf246
+[Upload API] New file - uploading to storage...
+[Storage] Configuration check: {
+  hasKeyId: true,
+  hasAppKey: true,
+  bucket: 'stubly-storage',
+  region: 'us-west-004',
+  endpoint: 'https://s3.us-west-004.backblazeb2.com',
+  isConfigured: true
+}
+[Storage] Uploading 72cc819208a2f56ec23548bbd0af463a29cf6b66a9c6461586793af3028cf246.png to bucket stubly-storage...
+[Storage] ✅ Successfully uploaded 72cc819208a2f56ec23548bbd0af463a29cf6b66a9c6461586793af3028cf246.png
+[Upload API] ✅ File uploaded to storage: 72cc819208a2f56ec23548bbd0af463a29cf6b66a9c6461586793af3028cf246.png
+[Upload API] Created FILES record: 72cc819208a2f56ec23548bbd0af463a29cf6b66a9c6461586793af3028cf246
+[Upload API] Created new storage mount: 2
+[Upload API] Created new LOCATIONS record for user: d9c886cc-1c93-419d-934d-caed5dbd8e51
+[Upload API] ✅ Upload complete: 72cc819208a2f56ec23548bbd0af463a29cf6b66a9c6461586793af3028cf246

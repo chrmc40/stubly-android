@@ -12,8 +12,15 @@ import type { ComponentType, SvelteComponent } from 'svelte';
  * Add new modals here with their dynamic import
  */
 export const modals = {
-	// Example modal (will be replaced with real modals as you port them)
-	// CreateFolder: async () => (await import('./components/CreateFolderModal.svelte')).default,
+	// Folder modals
+	CreateFolder: async () => (await import('./components/folders/CreateFolderModal.svelte')).default,
+	// Upload modals
+	Upload: async () => (await import('./components/uploads/UploadModal.svelte')).default,
+	// TODO: Port remaining modals from sn5:
+	// - Delete, BulkDelete, PropertiesFolder, Rename, CreateText
+	// - UploadProgress
+	// - DownloadFile, Downloads
+	// - Properties, UrlEditor, DocumentEditor, Tags, etc.
 } as const;
 
 /**
@@ -26,8 +33,8 @@ export type ModalKey = keyof typeof modals;
  * Define specific props per modal for type safety
  */
 export interface ModalPropsMap {
-	// Example:
-	// CreateFolder: { path: string[] };
+	CreateFolder: { path: string[] };
+	Upload: { path: string[]; autoOpenFileInput?: boolean };
 }
 
 /**

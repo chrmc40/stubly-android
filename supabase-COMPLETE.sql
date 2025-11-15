@@ -100,8 +100,8 @@ create index idx_profiles_subscription_end on public.profiles(subscription_end_d
 -- ============================================================================
 
 create table public.files (
+  file_id text primary key,
   user_id uuid not null references auth.users(id) on delete cascade,
-  file_id text not null,
   hash text,
   phash text,
   phash_algorithm text check (phash_algorithm in ('dhash', 'phash', 'whash')),
@@ -124,8 +124,7 @@ create table public.files (
   user_description text,
   create_date timestamptz not null default now(),
   modified_date timestamptz not null default now(),
-  user_edited_date timestamptz,
-  primary key (user_id, file_id)
+  user_edited_date timestamptz
 );
 
 create index idx_files_user_id on public.files(user_id);
@@ -141,7 +140,7 @@ create index idx_files_phash on public.files(phash) where phash is not null;
 
 create table public.source (
   user_id uuid not null references auth.users(id) on delete cascade,
-  file_id text not null,
+  file_id text not null references public.files(file_id) on delete cascade,
   url text not null,
   content_type text,
   remote_size bigint,
@@ -150,8 +149,7 @@ create table public.source (
   iframe boolean default false,
   embed text,
   modified_date timestamptz not null default now(),
-  primary key (user_id, file_id, url),
-  foreign key (user_id, file_id) references public.files(user_id, file_id) on delete cascade
+  primary key (user_id, file_id, url)
 );
 
 create index idx_source_file_id on public.source(file_id);
@@ -165,7 +163,7 @@ create index idx_source_domain on public.source(user_id, url_source);
 create table public.mounts (
   mount_id serial primary key,
   user_id uuid not null references auth.users(id) on delete cascade,
-  platform text not null check (platform in ('Android', 'Windows', 'Wasabi')),
+  platform text not null check (platform in ('Android', 'Windows', 'Backblaze')),
   mount_label text not null,
   device_id text,
   device_path text not null,
@@ -189,18 +187,20 @@ create index idx_mounts_encryption on public.mounts(user_id, encryption_enabled)
 create table public.locations (
   location_id serial primary key,
   user_id uuid not null references auth.users(id) on delete cascade,
-  file_id text not null,
+  file_id text not null references public.files(file_id) on delete cascade,
   mount_id integer not null references public.mounts(mount_id) on delete cascade,
   file_path text not null,
   has_thumb boolean default false,
+  thumb_path text,
   thumb_width integer,
   thumb_height integer,
   has_preview boolean default false,
+  preview_path text,
   has_sprite boolean default false,
+  sprite_path text,
   sync_date timestamptz,
   local_modified timestamptz,
-  unique (user_id, file_id, mount_id),
-  foreign key (user_id, file_id) references public.files(user_id, file_id) on delete cascade
+  unique (user_id, file_id, mount_id)
 );
 
 create index idx_locations_file_id on public.locations(file_id);
@@ -270,12 +270,11 @@ create index idx_tags_remote on public.tags(remote_tag_id) where remote_tag_id i
 
 create table public.file_tags (
   user_id uuid not null references auth.users(id) on delete cascade,
-  file_id text not null,
+  file_id text not null references public.files(file_id) on delete cascade,
   tag_id integer not null references public.tags(tag_id) on delete cascade,
   create_date timestamptz not null default now(),
   modified_date timestamptz not null default now(),
-  primary key (user_id, file_id, tag_id),
-  foreign key (user_id, file_id) references public.files(user_id, file_id) on delete cascade
+  primary key (user_id, file_id, tag_id)
 );
 
 create index idx_file_tags_file on public.file_tags(file_id);
@@ -289,7 +288,7 @@ create index idx_file_tags_user on public.file_tags(user_id);
 create table public.posts (
   post_id serial primary key,
   user_id uuid not null references auth.users(id) on delete cascade,
-  file_id text not null,
+  file_id text not null references public.files(file_id) on delete cascade,
   url text not null,
   domain text,
   post_date timestamptz,
@@ -298,8 +297,7 @@ create table public.posts (
   title text,
   create_date timestamptz not null default now(),
   modified_date timestamptz not null default now(),
-  unique (user_id, file_id, url),
-  foreign key (user_id, file_id) references public.files(user_id, file_id) on delete cascade
+  unique (user_id, file_id, url)
 );
 
 create index idx_posts_file_id on public.posts(file_id);
@@ -427,7 +425,20 @@ create policy "profiles_update_own" on public.profiles for update using (auth.ui
 create policy "profiles_insert_own" on public.profiles for insert with check (auth.uid() = id);
 
 -- Files and related tables
-create policy "users_own_files" on public.files for all using (auth.uid() = user_id);
+-- Allow insert if user is the uploader
+create policy "users_insert_files" on public.files for insert with check (auth.uid() = user_id);
+-- Allow select if user owns the file OR has a location record for it
+create policy "users_select_files" on public.files for select using (
+  auth.uid() = user_id
+  or exists (
+    select 1 from public.locations
+    where locations.file_id = files.file_id
+    and locations.user_id = auth.uid()
+  )
+);
+-- Allow update/delete only if user owns the file
+create policy "users_update_files" on public.files for update using (auth.uid() = user_id);
+create policy "users_delete_files" on public.files for delete using (auth.uid() = user_id);
 create policy "users_own_source" on public.source for all using (auth.uid() = user_id);
 create policy "users_own_mounts" on public.mounts for all using (auth.uid() = user_id);
 create policy "users_own_locations" on public.locations for all using (auth.uid() = user_id);
@@ -557,6 +568,27 @@ begin
     dmca_strike_date = now(),
     account_status = case when dmca_strike_count + 1 >= 3 then 'suspended' else account_status end
   where id = user_id;
+end;
+$$ language plpgsql security definer;
+
+-- Storage usage tracking functions
+create or replace function public.increment_storage_usage(p_user_id uuid, p_bytes bigint) returns void as $$
+begin
+  update public.profiles
+  set storage_used_bytes = storage_used_bytes + p_bytes,
+      file_count_used = file_count_used + 1,
+      modified_date = now()
+  where id = p_user_id;
+end;
+$$ language plpgsql security definer;
+
+create or replace function public.decrement_storage_usage(p_user_id uuid, p_bytes bigint) returns void as $$
+begin
+  update public.profiles
+  set storage_used_bytes = greatest(0, storage_used_bytes - p_bytes),
+      file_count_used = greatest(0, file_count_used - 1),
+      modified_date = now()
+  where id = p_user_id;
 end;
 $$ language plpgsql security definer;
 

@@ -2,6 +2,9 @@
   /* System Bar Heights (injected dynamically from Android) */
   --status-bar-height: 0px;
   --nav-bar-height: 0px;
+  --nav-bar-bottom: 0px;
+  --nav-bar-left: 0px;
+  --nav-bar-right: 0px;
 
   /* UI Transitions */
   --ui-transition: color 0.2s ease;
