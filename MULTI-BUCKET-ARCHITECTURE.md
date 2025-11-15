@@ -14,27 +14,37 @@ Stubly uses a 4-bucket architecture on Backblaze B2 to optimize performance, sec
 ### stubly-files (Private)
 - **Purpose**: Store original uploaded files
 - **Access**: Presigned URLs only (1 hour expiration)
-- **Security**: User authentication + ownership check via LOCATIONS table
-- **Deduplication**: Global (same file hash = same file)
+- **Security**: User authentication + ownership check via FILES table
+- **Deduplication**: NONE - each user gets their own copy (quota enforcement)
+- **Storage Structure**: `/user_id/path/to/file.mp4` (user's original filename preserved)
 - **URL Format**: Generated via `/api/presign` endpoint
+- **Example**: `stubly-files/550e8400-e29b-41d4-a716-446655440000/vacation/beach.mp4`
 
 ### stubly-thumbs (Public)
-- **Purpose**: Small thumbnail images for grid/list views
+- **Purpose**: Small thumbnail images for grid/list views (WebP format)
 - **Access**: Direct HTTP (no auth required)
-- **Deduplication**: Global
-- **URL Format**: `https://f004.backblazeb2.com/file/stubly-thumbs/HASH.jpg`
+- **Deduplication**: YES - globally deduplicated by hash (saves storage)
+- **Storage Structure**: `/{meta_hash}_thumb.webp` (root level, hash-based)
+- **URL Format**: `https://f004.backblazeb2.com/file/stubly-thumbs/{meta_hash}_thumb.webp`
+- **Note**: If 100 users have the same video, only 1 thumbnail exists
 
 ### stubly-previews (Public)
-- **Purpose**: Medium-sized preview images
+- **Purpose**: Preview videos for faster loading (MP4 format, lower quality/resolution)
 - **Access**: Direct HTTP (no auth required)
-- **Deduplication**: Global
-- **URL Format**: `https://f004.backblazeb2.com/file/stubly-previews/HASH.jpg`
+- **Deduplication**: YES - globally deduplicated by hash (saves storage)
+- **Storage Structure**: `/{meta_hash}_preview.mp4` (root level, hash-based)
+- **URL Format**: `https://f004.backblazeb2.com/file/stubly-previews/{meta_hash}_preview.mp4`
+- **Note**: If 100 users have the same video, only 1 preview exists
 
 ### stubly-sprites (Public)
-- **Purpose**: Video sprite sheets for scrubbing/seeking
+- **Purpose**: Video sprite sheets for scrubbing/seeking (WebP image + JSON metadata)
 - **Access**: Direct HTTP (no auth required)
-- **Deduplication**: Global
-- **URL Format**: `https://f004.backblazeb2.com/file/stubly-sprites/HASH.jpg`
+- **Deduplication**: YES - globally deduplicated by hash (saves storage)
+- **Storage Structure**: `/{meta_hash}_sprite.webp` and `/{meta_hash}_sprite.json` (root level)
+- **URL Format**:
+  - Image: `https://f004.backblazeb2.com/file/stubly-sprites/{meta_hash}_sprite.webp`
+  - Metadata: `https://f004.backblazeb2.com/file/stubly-sprites/{meta_hash}_sprite.json`
+- **Note**: If 100 users have the same video, only 1 sprite sheet exists
 
 ## Why This Architecture?
 
@@ -57,32 +67,48 @@ Stubly uses a 4-bucket architecture on Backblaze B2 to optimize performance, sec
 ### Cost Optimization
 - **Backblaze B2 native URLs** for public buckets (cheaper egress than S3 API)
 - **Unlimited egress** on all buckets (Backblaze benefit)
-- **Deduplication** across all buckets reduces storage costs
+- **Selective deduplication**:
+  - Original files NOT deduplicated → each user counts against their quota
+  - Thumbnails/previews/sprites deduplicated → massive storage savings
+  - Example: 1000 users with same video = 1000 originals + 1 thumb/preview/sprite set
 
 ## API Usage
 
 ### Uploading Files
 
 ```typescript
-// Upload original file to FILES bucket
-await uploadToStorage('FILES', `${hash}.${ext}`, buffer, mimeType);
+// Upload original file to FILES bucket (per-user path)
+const userId = 'user-uuid-here';
+const userPath = 'vacation/beach.mp4'; // User's chosen filename/path
+await uploadToStorage('FILES', `${userId}/${userPath}`, buffer, mimeType);
 
-// Upload thumbnail to THUMBS bucket
-await uploadToStorage('THUMBS', `${hash}.jpg`, thumbBuffer, 'image/jpeg');
+// Upload thumbnail to THUMBS bucket (hash-based, deduplicated)
+await uploadToStorage('THUMBS', `${metaHash}_thumb.webp`, thumbBuffer, 'image/webp');
 
-// Upload preview to PREVIEWS bucket
-await uploadToStorage('PREVIEWS', `${hash}.jpg`, previewBuffer, 'image/jpeg');
+// Upload preview to PREVIEWS bucket (hash-based, deduplicated)
+await uploadToStorage('PREVIEWS', `${metaHash}_preview.mp4`, previewBuffer, 'video/mp4');
 
-// Upload sprite to SPRITES bucket
-await uploadToStorage('SPRITES', `${hash}.jpg`, spriteBuffer, 'image/jpeg');
+// Upload sprite sheet to SPRITES bucket (hash-based, deduplicated)
+await uploadToStorage('SPRITES', `${metaHash}_sprite.webp`, spriteBuffer, 'image/webp');
+await uploadToStorage('SPRITES', `${metaHash}_sprite.json`, spriteMetadata, 'application/json');
 ```
 
 ### Accessing Files
 
 ```typescript
 // Get public URL for thumbnail (instant, no API call)
-const thumbUrl = getPublicUrl('THUMBS', fileId, 'jpg');
-// Returns: https://f004.backblazeb2.com/file/stubly-thumbs/abc123.jpg
+const thumbUrl = `https://f004.backblazeb2.com/file/stubly-thumbs/${file.thumb_path}`;
+// Returns: https://f004.backblazeb2.com/file/stubly-thumbs/abc123_thumb.webp
+
+// Get public URL for preview (instant, no API call)
+const previewUrl = `https://f004.backblazeb2.com/file/stubly-previews/${file.preview_path}`;
+// Returns: https://f004.backblazeb2.com/file/stubly-previews/abc123_preview.mp4
+
+// Get public URLs for sprite sheet (instant, no API call)
+const spriteUrl = `https://f004.backblazeb2.com/file/stubly-sprites/${file.sprite_path}`;
+const spriteJsonUrl = `https://f004.backblazeb2.com/file/stubly-sprites/${file.sprite_json_path}`;
+// Returns: https://f004.backblazeb2.com/file/stubly-sprites/abc123_sprite.webp
+//          https://f004.backblazeb2.com/file/stubly-sprites/abc123_sprite.json
 
 // Get presigned URL for original file (requires API call)
 const response = await fetch('/api/presign', {
@@ -121,27 +147,60 @@ BACKBLAZE_BUCKET_SPRITES=stubly-sprites   # Public
 
 ### MOUNTS Table
 ```sql
--- Cloud storage mount points to FILES bucket
-device_path = 'b2://stubly-files/'
+-- Each user gets their own cloud mount pointing to their B2 folder
+user_id = '550e8400-e29b-41d4-a716-446655440000'
+device_path = 'b2://stubly-files/550e8400-e29b-41d4-a716-446655440000/'
 platform = 'Backblaze'
 storage_type = 'cloud'
+
+-- Or for local storage on Android
+user_id = '550e8400-e29b-41d4-a716-446655440000'
+device_path = '/storage/emulated/0/Stubly/'
+platform = 'Android'
+storage_type = 'local'
+```
+
+### META Table
+```sql
+-- Deduplicated file content metadata
+meta_hash = SHA-256 hash (primary key)
+type = 'image', 'video', 'audio'
+mime_type = 'image/jpeg', 'video/mp4', etc.
+width, height, duration, codecs, etc.
+
+-- B2 derivative existence flags (global)
+b2_thumb_exists = boolean (thumbnail exists in stubly-thumbs bucket)
+b2_thumb_width = integer (for layout calculations)
+b2_thumb_height = integer (for layout calculations)
+b2_preview_exists = boolean (preview exists in stubly-previews bucket)
+b2_sprite_exists = boolean (sprite image exists in stubly-sprites bucket)
+b2_sprite_json_exists = boolean (sprite JSON exists in stubly-sprites bucket)
 ```
 
 ### FILES Table
 ```sql
--- All files deduplicated by SHA-256 hash
-file_id = SHA-256 hash (primary key)
-local_size = original file size
-mime_type = 'image/jpeg', 'video/mp4', etc.
-```
+-- Tracks which users have which files (user ownership + locations)
+file_id = bigserial (primary key)
+user_id = '550e8400-e29b-41d4-a716-446655440000'
+mount_id = 5 (references user's Backblaze mount)
+file_path = 'vacation/beach.mp4' (user's chosen path/filename)
+meta_hash = 'abc123def456' (references META table for content metadata)
+local_size = 15728640 (original file size in bytes - counts toward quota)
+has_thumb = true
+thumb_path = 'abc123def456_thumb.webp' (globally deduplicated in stubly-thumbs)
+thumb_width = 320
+thumb_height = 180
+has_preview = true
+preview_path = 'abc123def456_preview.mp4' (globally deduplicated in stubly-previews)
+has_sprite = true
+sprite_path = 'abc123def456_sprite.webp' (globally deduplicated in stubly-sprites)
+sprite_json_path = 'abc123def456_sprite.json'
 
-### LOCATIONS Table
-```sql
--- Tracks which users have which files
-user_id, file_id, mount_id (unique constraint)
-has_thumb = boolean
-has_preview = boolean
-has_sprite = boolean
+-- Actual B2 locations:
+-- Original: stubly-files/550e8400-e29b-41d4-a716-446655440000/vacation/beach.mp4
+-- Thumb: stubly-thumbs/abc123def456_thumb.webp
+-- Preview: stubly-previews/abc123def456_preview.mp4
+-- Sprite: stubly-sprites/abc123def456_sprite.webp + abc123def456_sprite.json
 ```
 
 ## Security Considerations

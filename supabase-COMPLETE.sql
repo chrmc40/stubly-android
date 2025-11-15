@@ -7,8 +7,6 @@
 -- Clean slate
 do $$
 begin
-  execute 'drop table if exists public.files_fts cascade';
-  execute 'drop table if exists public.posts_fts cascade';
   execute 'drop table if exists public.file_tags cascade';
   execute 'drop table if exists public.posts cascade';
   execute 'drop table if exists public.source cascade';
@@ -118,6 +116,12 @@ create table public.meta (
   audio_bitrate bigint,
   audio_sample_rate integer,
   audio_channels integer,
+  b2_thumb_exists boolean default false,
+  b2_thumb_width integer,
+  b2_thumb_height integer,
+  b2_preview_exists boolean default false,
+  b2_sprite_exists boolean default false,
+  b2_sprite_json_exists boolean default false,
   create_date timestamptz not null default now(),
   modified_date timestamptz not null default now()
 );
@@ -171,11 +175,13 @@ create table public.files (
   preview_path text,
   has_sprite boolean default false,
   sprite_path text,
+  sprite_json_path text,
   sync_date timestamptz,
   local_modified timestamptz,
   create_date timestamptz not null default now(),
   modified_date timestamptz not null default now(),
   user_edited_date timestamptz,
+  search_vector tsvector,
   unique (user_id, mount_id, file_path)
 );
 
@@ -186,6 +192,7 @@ create index idx_files_meta_hash on public.files(meta_hash) where meta_hash is n
 create index idx_files_type on public.files(user_id, type);
 create index idx_files_created on public.files(user_id, create_date desc);
 create index idx_files_size on public.files(user_id, local_size desc);
+create index idx_files_search on public.files using gin(search_vector);
 
 -- ============================================================================
 -- SOURCE TABLE
@@ -298,6 +305,7 @@ create table public.posts (
   title text,
   create_date timestamptz not null default now(),
   modified_date timestamptz not null default now(),
+  search_vector tsvector,
   unique (user_id, file_id, url)
 );
 
@@ -307,6 +315,7 @@ create index idx_posts_domain on public.posts(user_id, domain);
 create index idx_posts_post_user on public.posts(user_id, post_user);
 create index idx_posts_post_date on public.posts(user_id, post_date desc);
 create index idx_posts_url on public.posts(url);
+create index idx_posts_search on public.posts using gin(search_vector);
 
 -- ============================================================================
 -- DELETIONS TABLE
@@ -423,15 +432,9 @@ create policy "profiles_select_public" on public.profiles for select using (true
 create policy "profiles_update_own" on public.profiles for update using (auth.uid() = id);
 create policy "profiles_insert_own" on public.profiles for insert with check (auth.uid() = id);
 
--- Meta: anyone can read (for deduplication checks), only insert/update if you own a file with that hash
+-- Meta: anyone can read (for deduplication checks), authenticated users can insert (global shared table)
 create policy "meta_select_all" on public.meta for select using (true);
-create policy "meta_insert" on public.meta for insert with check (
-  exists (
-    select 1 from public.files
-    where files.meta_hash = meta.meta_hash
-    and files.user_id = auth.uid()
-  )
-);
+create policy "meta_insert" on public.meta for insert with check (auth.uid() is not null);
 create policy "meta_update" on public.meta for update using (
   exists (
     select 1 from public.files
@@ -440,14 +443,46 @@ create policy "meta_update" on public.meta for update using (
   )
 );
 
--- Files and related tables
+-- Files: users can access their own files + files shared with them
 create policy "users_own_files" on public.files for all using (auth.uid() = user_id);
+create policy "users_view_shared_files" on public.files for select using (
+  exists (
+    select 1 from public.shared_libraries sl
+    where sl.mount_id = files.mount_id
+    and sl.guest_user_id = auth.uid()
+    and sl.permission_view = true
+    and sl.revoked_date is null
+  )
+);
+
+-- Source: users can access source for their own files + shared files
 create policy "users_own_source" on public.source for all using (auth.uid() = user_id);
+create policy "users_view_shared_source" on public.source for select using (
+  exists (
+    select 1 from public.files f
+    join public.shared_libraries sl on sl.mount_id = f.mount_id
+    where f.file_id = source.file_id
+    and sl.guest_user_id = auth.uid()
+    and sl.permission_view = true
+    and sl.revoked_date is null
+  )
+);
 create policy "users_own_mounts" on public.mounts for all using (auth.uid() = user_id);
 create policy "users_own_folders" on public.folders for all using (auth.uid() = user_id);
 create policy "users_own_tags" on public.tags for all using (auth.uid() = user_id);
 create policy "users_own_file_tags" on public.file_tags for all using (auth.uid() = user_id);
+-- Posts: users can access posts for their own files + shared files
 create policy "users_own_posts" on public.posts for all using (auth.uid() = user_id);
+create policy "users_view_shared_posts" on public.posts for select using (
+  exists (
+    select 1 from public.files f
+    join public.shared_libraries sl on sl.mount_id = f.mount_id
+    where f.file_id = posts.file_id
+    and sl.guest_user_id = auth.uid()
+    and sl.permission_view = true
+    and sl.revoked_date is null
+  )
+);
 create policy "users_own_deletions" on public.deletions for all using (auth.uid() = user_id);
 create policy "users_own_settings_crawl" on public.user_settings_crawl for all using (auth.uid() = user_id);
 create policy "users_own_settings_folders" on public.user_settings_folders for all using (auth.uid() = user_id);
@@ -480,6 +515,77 @@ create trigger set_updated_at_profiles before update on public.profiles for each
 create trigger set_updated_at_tiers before update on public.subscription_tiers for each row execute function public.handle_updated_at();
 create trigger set_updated_at_meta before update on public.meta for each row execute function public.handle_updated_at();
 create trigger set_updated_at_files before update on public.files for each row execute function public.handle_updated_at();
+
+-- Update settings update_date timestamp
+create or replace function public.handle_settings_updated_at() returns trigger as $$
+begin
+  new.update_date = now();
+  return new;
+end;
+$$ language plpgsql;
+
+create trigger set_updated_at_settings_crawl before update on public.user_settings_crawl for each row execute function public.handle_settings_updated_at();
+create trigger set_updated_at_settings_folders before update on public.user_settings_folders for each row execute function public.handle_settings_updated_at();
+create trigger set_updated_at_settings_search before update on public.user_settings_search for each row execute function public.handle_settings_updated_at();
+
+-- Full-Text Search: Update search_vector for FILES table
+create or replace function public.update_files_search_vector() returns trigger as $$
+declare
+  tag_names text;
+begin
+  -- Aggregate tag names for this file
+  select string_agg(t.tag_name, ' ')
+  into tag_names
+  from public.file_tags ft
+  join public.tags t on ft.tag_id = t.tag_id
+  where ft.file_id = new.file_id;
+
+  -- Build search vector from file_path, user_description, and tags
+  new.search_vector :=
+    setweight(to_tsvector('english', coalesce(new.file_path, '')), 'A') ||
+    setweight(to_tsvector('english', coalesce(new.user_description, '')), 'B') ||
+    setweight(to_tsvector('english', coalesce(tag_names, '')), 'C');
+
+  return new;
+end;
+$$ language plpgsql;
+
+create trigger files_search_vector_update
+  before insert or update on public.files
+  for each row execute function public.update_files_search_vector();
+
+-- Trigger to update files search_vector when tags change
+create or replace function public.update_file_search_on_tag_change() returns trigger as $$
+begin
+  -- Update the search_vector for the affected file
+  update public.files
+  set modified_date = modified_date -- Trigger the files update trigger
+  where file_id = coalesce(new.file_id, old.file_id);
+
+  return coalesce(new, old);
+end;
+$$ language plpgsql;
+
+create trigger file_tags_search_update
+  after insert or delete on public.file_tags
+  for each row execute function public.update_file_search_on_tag_change();
+
+-- Full-Text Search: Update search_vector for POSTS table
+create or replace function public.update_posts_search_vector() returns trigger as $$
+begin
+  new.search_vector :=
+    setweight(to_tsvector('english', coalesce(new.title, '')), 'A') ||
+    setweight(to_tsvector('english', coalesce(new.post_text, '')), 'B') ||
+    setweight(to_tsvector('english', coalesce(new.post_user, '')), 'C') ||
+    setweight(to_tsvector('english', coalesce(new.domain, '')), 'D');
+
+  return new;
+end;
+$$ language plpgsql;
+
+create trigger posts_search_vector_update
+  before insert or update on public.posts
+  for each row execute function public.update_posts_search_vector();
 
 -- Auto-create profile for new users
 create or replace function public.handle_new_user() returns trigger as $$
@@ -595,6 +701,51 @@ begin
   where id = p_user_id;
 end;
 $$ language plpgsql security definer;
+
+-- Auto-update storage quota on file insert
+create or replace function public.handle_file_insert() returns trigger as $$
+begin
+  perform public.increment_storage_usage(new.user_id, coalesce(new.local_size, 0));
+  return new;
+end;
+$$ language plpgsql security definer;
+
+create trigger files_increment_quota
+  after insert on public.files
+  for each row execute function public.handle_file_insert();
+
+-- Auto-update storage quota on file delete
+create or replace function public.handle_file_delete() returns trigger as $$
+begin
+  perform public.decrement_storage_usage(old.user_id, coalesce(old.local_size, 0));
+  return old;
+end;
+$$ language plpgsql security definer;
+
+create trigger files_decrement_quota
+  after delete on public.files
+  for each row execute function public.handle_file_delete();
+
+-- Handle file size updates (if local_size changes)
+create or replace function public.handle_file_update() returns trigger as $$
+declare
+  size_diff bigint;
+begin
+  if old.local_size is distinct from new.local_size then
+    size_diff := coalesce(new.local_size, 0) - coalesce(old.local_size, 0);
+    if size_diff > 0 then
+      perform public.increment_storage_usage(new.user_id, size_diff);
+    elsif size_diff < 0 then
+      perform public.decrement_storage_usage(new.user_id, abs(size_diff));
+    end if;
+  end if;
+  return new;
+end;
+$$ language plpgsql security definer;
+
+create trigger files_update_quota
+  after update on public.files
+  for each row execute function public.handle_file_update();
 
 -- ============================================================================
 -- VERIFICATION

@@ -48,6 +48,12 @@ audio_codec - text
 audio_bitrate - bigint
 audio_sample_rate - integer
 audio_channels - integer
+b2_thumb_exists - boolean DEFAULT false (global B2 thumbnail exists in stubly-thumbs bucket)
+b2_thumb_width - integer (thumbnail width for layout calculations)
+b2_thumb_height - integer (thumbnail height for layout calculations)
+b2_preview_exists - boolean DEFAULT false (global B2 preview exists in stubly-previews bucket)
+b2_sprite_exists - boolean DEFAULT false (global B2 sprite image exists in stubly-sprites bucket)
+b2_sprite_json_exists - boolean DEFAULT false (global B2 sprite JSON exists in stubly-sprites bucket)
 create_date - timestamptz NOT NULL DEFAULT now()
 modified_date - timestamptz NOT NULL DEFAULT now()
 
@@ -82,11 +88,13 @@ has_preview - boolean DEFAULT false
 preview_path - text
 has_sprite - boolean DEFAULT false
 sprite_path - text
+sprite_json_path - text
 sync_date - timestamptz
 local_modified - timestamptz
 create_date - timestamptz NOT NULL DEFAULT now()
 modified_date - timestamptz NOT NULL DEFAULT now()
 user_edited_date - timestamptz
+search_vector - tsvector (Full-text search: file_path + user_description + aggregated tags)
 UNIQUE (user_id, mount_id, file_path)
 
 [SOURCE]
@@ -149,6 +157,7 @@ post_user - text
 title - text
 create_date - timestamptz NOT NULL DEFAULT now()
 modified_date - timestamptz NOT NULL DEFAULT now()
+search_vector - tsvector (Full-text search: title + post_text + post_user + domain)
 UNIQUE (user_id, file_id, url)
 
 [DELETIONS]
@@ -238,6 +247,7 @@ CREATE INDEX idx_files_meta_hash ON files(meta_hash) WHERE meta_hash IS NOT NULL
 CREATE INDEX idx_files_type ON files(user_id, type);
 CREATE INDEX idx_files_created ON files(user_id, create_date DESC);
 CREATE INDEX idx_files_size ON files(user_id, local_size DESC);
+CREATE INDEX idx_files_search ON files USING gin(search_vector);
 
 SOURCE
 CREATE INDEX idx_source_file_id ON source(file_id);
@@ -271,6 +281,7 @@ CREATE INDEX idx_posts_domain ON posts(user_id, domain);
 CREATE INDEX idx_posts_post_user ON posts(user_id, post_user);
 CREATE INDEX idx_posts_post_date ON posts(user_id, post_date DESC);
 CREATE INDEX idx_posts_url ON posts(url);
+CREATE INDEX idx_posts_search ON posts USING gin(search_vector);
 
 DELETIONS
 CREATE INDEX idx_deletions_user_id ON deletions(user_id);
