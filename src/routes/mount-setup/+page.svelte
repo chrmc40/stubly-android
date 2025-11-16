@@ -25,8 +25,8 @@
 		error = '';
 
 		try {
-			// Call Supabase Edge Function to create Wasabi mount
-			const { data, error: funcError } = await supabase.functions.invoke('create-wasabi-mount', {
+			// Call Supabase Edge Function to create Backblaze B2 mount
+			const { data, error: funcError } = await supabase.functions.invoke('create-storage-mount', {
 				method: 'POST'
 			});
 

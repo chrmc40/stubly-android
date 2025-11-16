@@ -163,7 +163,7 @@ storage_type = 'local'
 ### META Table
 ```sql
 -- Deduplicated file content metadata
-meta_hash = SHA-256 hash (primary key)
+meta_id = SHA-256 hash (primary key)
 type = 'image', 'video', 'audio'
 mime_type = 'image/jpeg', 'video/mp4', etc.
 width, height, duration, codecs, etc.
@@ -184,7 +184,7 @@ file_id = bigserial (primary key)
 user_id = '550e8400-e29b-41d4-a716-446655440000'
 mount_id = 5 (references user's Backblaze mount)
 file_path = 'vacation/beach.mp4' (user's chosen path/filename)
-meta_hash = 'abc123def456' (references META table for content metadata)
+meta_id = 'abc123def456' (references META table for content metadata)
 local_size = 15728640 (original file size in bytes - counts toward quota)
 has_thumb = true
 thumb_path = 'abc123def456_thumb.webp' (globally deduplicated in stubly-thumbs)

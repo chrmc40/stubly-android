@@ -45,11 +45,12 @@ export interface MetaRecord {
 // ============================================================================
 
 export interface FileRecord {
-	file_id: number; // PK auto increment (bigserial)
+	file_id: string; // PK UUID (gen_random_uuid())
 	user_id: string; // UUID
-	meta_hash: string | null; // FK to META (sha256 of file content or URL)
+	meta_id: string | null; // FK to META (sha256 of file content)
 	mount_id: number; // FK to MOUNTS
 	file_path: string; // relative path within mount
+	file_extension: string; // file extension for B2 path construction
 	type: FileType;
 	local_size: number | null;
 	user_description: string | null;
@@ -61,6 +62,9 @@ export interface FileRecord {
 	preview_path: string | null;
 	has_sprite: boolean;
 	sprite_path: string | null;
+	sprite_json_path: string | null;
+	b2_synced: boolean; // B2 sync status
+	b2_sync_date: string | null; // timestamptz
 	sync_date: string | null; // timestamptz
 	local_modified: string | null; // timestamptz
 	create_date: string; // timestamptz
@@ -74,7 +78,7 @@ export interface FileRecord {
 
 export interface SourceRecord {
 	user_id: string; // PK
-	file_id: number; // PK - FK to FILES
+	file_id: string; // PK - FK to FILES (UUID)
 	url: string; // PK
 	content_type: string | null;
 	remote_size: number | null;
@@ -151,7 +155,7 @@ export interface TagRecord {
 
 export interface FileTagRecord {
 	user_id: string; // PK - UUID
-	file_id: number; // PK - FK to FILES
+	file_id: string; // PK - FK to FILES (UUID)
 	tag_id: number; // PK - FK to TAGS
 	create_date: string; // timestamptz
 	modified_date: string; // timestamptz
@@ -164,7 +168,7 @@ export interface FileTagRecord {
 export interface PostRecord {
 	post_id: number; // PK auto increment
 	user_id: string; // UUID
-	file_id: number; // FK to FILES
+	file_id: string; // FK to FILES (UUID)
 	url: string;
 	domain: string | null;
 	post_date: string | null; // timestamptz
@@ -182,7 +186,7 @@ export interface PostRecord {
 export interface DeletionRecord {
 	deletion_id: number; // PK auto increment
 	user_id: string; // UUID
-	file_id: number;
+	file_id: string; // UUID
 	deleted_date: string; // timestamptz
 	synced_to_pairs: boolean;
 }
@@ -342,7 +346,7 @@ export interface ActiveShare extends SharedLibraryRecord {
 // ============================================================================
 
 export type MetaInsert = Omit<MetaRecord, 'create_date' | 'modified_date'>;
-export type FileInsert = Omit<FileRecord, 'file_id' | 'create_date' | 'modified_date'>;
+export type FileInsert = Omit<FileRecord, 'create_date' | 'modified_date'>;
 export type SourceInsert = Omit<SourceRecord, 'modified_date'>;
 export type MountInsert = Omit<MountRecord, 'mount_id' | 'create_date'>;
 export type FolderInsert = Omit<FolderRecord, 'folder_id' | 'create_date'>;

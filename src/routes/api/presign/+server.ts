@@ -8,7 +8,7 @@ import { getPresignedUrl } from '$lib/config/storage';
  *
  * Request body:
  * {
- *   fileIds: string[], // Array of file IDs (SHA-256 hashes)
+ *   fileIds: string[], // Array of file IDs (UUIDs)
  *   expiresIn?: number  // Optional expiration time in seconds (default: 3600 = 1 hour)
  * }
  *
@@ -79,19 +79,19 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 		console.log('[Presign API] Generating URLs for', fileIds.length, 'files');
 
-		// Check user has access to all requested files via LOCATIONS table
-		const { data: locations, error: locationsError } = await supabase
-			.from('locations')
-			.select('file_id, files(mime_type)')
+		// Check user has access to all requested files via FILES table
+		const { data: files, error: filesError } = await supabase
+			.from('files')
+			.select('file_id, file_extension, user_id')
 			.eq('user_id', userId)
 			.in('file_id', fileIds);
 
-		if (locationsError) {
-			console.error('[Presign API] Error checking file ownership:', locationsError);
+		if (filesError) {
+			console.error('[Presign API] Error checking file ownership:', filesError);
 			return json({ error: 'Database error' }, { status: 500 });
 		}
 
-		if (!locations || locations.length !== fileIds.length) {
+		if (!files || files.length !== fileIds.length) {
 			console.log('[Presign API] User does not have access to all requested files');
 			return json({ error: 'Access denied to one or more files' }, { status: 403 });
 		}
@@ -99,14 +99,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		// Generate presigned URLs
 		const urls: Record<string, string> = {};
 
-		for (const location of locations) {
-			const fileId = location.file_id;
-			const mimeType = location.files?.mime_type || 'application/octet-stream';
-
-			// Extract file extension from MIME type
-			const extension = mimeType.split('/')[1] || 'bin';
+		for (const file of files) {
+			const fileId = file.file_id;
+			const extension = file.file_extension || 'bin';
 
 			try {
+				// B2 path: stubly-files/USER_ID/FILE_ID.extension
 				const url = await getPresignedUrl(fileId, extension, expiresIn);
 				urls[fileId] = url;
 			} catch (error) {

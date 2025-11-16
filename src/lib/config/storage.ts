@@ -72,17 +72,20 @@ export async function uploadToStorage(
 
 /**
  * Generate presigned URL for private file access
- * @param fileId - SHA-256 hash of the file
+ * @param userId - User ID (for per-user B2 folder path)
+ * @param metaId - SHA-256 content hash
  * @param extension - File extension (e.g., "jpg", "mp4")
  * @param expiresIn - URL validity in seconds (default: 1 hour)
  * @returns Presigned URL valid for specified duration
  */
 export async function getPresignedUrl(
-	fileId: string,
+	userId: string,
+	metaId: string,
 	extension: string,
 	expiresIn: number = 3600
 ): Promise<string> {
-	const key = `${fileId}.${extension}`;
+	// B2 path format: stubly-files/USER_ID/META_ID.extension
+	const key = `${userId}/${metaId}.${extension}`;
 
 	console.log(`[Storage] Generating presigned URL for ${key} (expires in ${expiresIn}s)`);
 

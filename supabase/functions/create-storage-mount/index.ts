@@ -60,12 +60,13 @@ serve(async (req) => {
       throw new Error('Backblaze B2 credentials not configured')
     }
 
-    // Files bucket path
-    const devicePath = `b2://${backblazeBucketFiles}/`
+    // Files bucket path - per-user folder for quota enforcement
+    const devicePath = `b2://${backblazeBucketFiles}/${user.id}/`
 
     // Note: We don't actually need to create the folder in Backblaze B2
     // S3-compatible storage creates folders automatically when you upload files
-    // Just create the mount record in the database
+    // Each user gets their own folder: stubly-files/USER_ID/
+    // This ensures files count toward individual user quotas
 
     // Create mount record in database
     const { data: mount, error: mountError } = await supabaseClient

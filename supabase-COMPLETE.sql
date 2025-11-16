@@ -98,7 +98,7 @@ create index idx_profiles_subscription_end on public.profiles(subscription_end_d
 -- ============================================================================
 
 create table public.meta (
-  meta_hash text primary key,
+  meta_id text primary key,
   phash text,
   phash_algorithm text check (phash_algorithm in ('dhash', 'phash', 'whash')),
   type text not null check (type in ('image', 'video', 'audio')),
@@ -159,11 +159,12 @@ create index idx_mounts_encryption on public.mounts(user_id, encryption_enabled)
 -- ============================================================================
 
 create table public.files (
-  file_id bigserial primary key,
+  file_id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  meta_hash text references public.meta(meta_hash) on delete set null,
+  meta_id text references public.meta(meta_id) on delete set null,
   mount_id integer not null references public.mounts(mount_id) on delete cascade,
   file_path text not null,
+  file_extension text not null,
   type text not null check (type in ('image', 'video', 'audio', 'url')),
   local_size bigint,
   user_description text,
@@ -176,6 +177,8 @@ create table public.files (
   has_sprite boolean default false,
   sprite_path text,
   sprite_json_path text,
+  b2_synced boolean default false,
+  b2_sync_date timestamptz,
   sync_date timestamptz,
   local_modified timestamptz,
   create_date timestamptz not null default now(),
@@ -188,7 +191,7 @@ create table public.files (
 create index idx_files_user_id on public.files(user_id);
 create index idx_files_mount on public.files(mount_id, file_path);
 create index idx_files_user_mount_path on public.files(user_id, mount_id, file_path);
-create index idx_files_meta_hash on public.files(meta_hash) where meta_hash is not null;
+create index idx_files_meta_id on public.files(meta_id) where meta_id is not null;
 create index idx_files_type on public.files(user_id, type);
 create index idx_files_created on public.files(user_id, create_date desc);
 create index idx_files_size on public.files(user_id, local_size desc);
@@ -200,7 +203,7 @@ create index idx_files_search on public.files using gin(search_vector);
 
 create table public.source (
   user_id uuid not null references auth.users(id) on delete cascade,
-  file_id bigint not null references public.files(file_id) on delete cascade,
+  file_id uuid not null references public.files(file_id) on delete cascade,
   url text not null,
   content_type text,
   remote_size bigint,
@@ -278,7 +281,7 @@ create index idx_tags_remote on public.tags(remote_tag_id) where remote_tag_id i
 
 create table public.file_tags (
   user_id uuid not null references auth.users(id) on delete cascade,
-  file_id bigint not null references public.files(file_id) on delete cascade,
+  file_id uuid not null references public.files(file_id) on delete cascade,
   tag_id integer not null references public.tags(tag_id) on delete cascade,
   create_date timestamptz not null default now(),
   modified_date timestamptz not null default now(),
@@ -296,7 +299,7 @@ create index idx_file_tags_user on public.file_tags(user_id);
 create table public.posts (
   post_id serial primary key,
   user_id uuid not null references auth.users(id) on delete cascade,
-  file_id bigint not null references public.files(file_id) on delete cascade,
+  file_id uuid not null references public.files(file_id) on delete cascade,
   url text not null,
   domain text,
   post_date timestamptz,
@@ -324,7 +327,7 @@ create index idx_posts_search on public.posts using gin(search_vector);
 create table public.deletions (
   deletion_id serial primary key,
   user_id uuid not null references auth.users(id) on delete cascade,
-  file_id bigint not null,
+  file_id uuid not null,
   deleted_date timestamptz not null default now(),
   synced_to_pairs boolean default false
 );
@@ -438,7 +441,7 @@ create policy "meta_insert" on public.meta for insert with check (auth.uid() is 
 create policy "meta_update" on public.meta for update using (
   exists (
     select 1 from public.files
-    where files.meta_hash = meta.meta_hash
+    where files.meta_id = meta.meta_id
     and files.user_id = auth.uid()
   )
 );
